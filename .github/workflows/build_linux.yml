@@ -12,15 +12,25 @@ jobs:
     
     steps:
       - uses: actions/checkout@v3
+        with:
+          submodules: 'recursive'
 
       - name: Install Dependencies
         run: |
           sudo apt update
           python3 -m pip install compiledb
 
+      - name: Initialize GitHub Modules
+        run: |
+          git submodule update --init --recursive
+
       - name: Build all
         run: |
           make all
+
+      - name: Build & run tests
+        run: |
+          make test
 
       - name: Generate compile_commands
         run: |
