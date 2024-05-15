@@ -24,8 +24,10 @@ PLATFORM =
 TARGET_ARCH =
 ifeq (${OS}, Windows_NT)
 	PLATFORM = ${OS}
+	TARGET_ARCH = ${PROCESSOR_ARCHITECTURE}
 else
 	PLATFORM = $(shell uname -s)
+	TARGET_ARCH = $(shell uname -m)
 endif
 
 # Compiler
@@ -47,9 +49,19 @@ endif
 # Flags
 INCLUDES = \
 	-I .
-CCFLAGS = ${INCLUDES} -mno-outline-atomics -O3 \
+CCFLAGS = ${INCLUDES} -O3 \
 	-Wall -Wextra -std=gnu99
 ARFLAGS = rcs
+
+# Architecture specific flags
+ifeq (${TARGET_ARCH}, $(filter ${TARGET_ARCH}, arm arm64 aarch64))
+	CCFLAGS += -mno-outline-atomics
+else ifeq (${TARGET_ARCH}, $(filter ${TARGET_ARCH}, x86 x86_64))
+	CCFLAGS += -fno-outline-atomics
+else
+	@echo "Unkown target architecture ${TARGET_ARCH}"
+	@exit 1
+endif
 
 # Project source files
 SRCS = \
