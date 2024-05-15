@@ -6,6 +6,7 @@
  * Machines by" R. Marotta, M. Ianni, A. Scarselli, A. Pellegrini and F. Quaglia
  *
  * Reference:
+ * https://ieeexplore.ieee.org/document/9358002
  * https://github.com/HPDCS/NBBS
  *
  * Author: Tuna CICI
@@ -30,14 +31,54 @@
 #define OCC             ((uint8_t) 0x10)
 #define BUSY            (OCC | OCC_LEFT | OCC_RIGHT)
 
-#define EXP2(n) (0x1ULL << (n))
-#define LOG2_LOWER(n) (64ULL - __builtin_clzll(n) - 1ULL) // 64 bit
+/*
+ * Math functions
+ */
+#if __APPLE__ && __MACH__
+        #define EXP2(n) (0x1ULL << (n))
+        #define LOG2_LOWER(n) (64ULL - __builtin_clzll(n) - 1ULL) // 64 bit
+#elif __linux__
+        #define EXP2(n) (0x1ULL << (n))
+        #define LOG2_LOWER(n) (64ULL - __builtin_clzll(n) - 1ULL) // 64 bit
+#elif _WIN32
+        #define EXP2(n) (0x1ULL << (n))
+        #define LOG2_LOWER(n) (64ULL - __lzcnt64(n) - 1ULL) // 64 bit
+#else
+        #error "Unsupported platform"
+#endif
 
-#define FAD(ptr, val) __atomic_add_fetch(ptr, val, __ATOMIC_SEQ_CST)
-#define BCAS(ptr, expected, desired) __atomic_compare_exchange_n(ptr, expected, desired, 0, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST)
-#define VCAS(ptr, expected, desired) __atomic_compare_exchange_n(ptr, expected, desired, 0, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST) ? (*expected) : 0
-
-#define LEVEL(n) LOG2_LOWER(n)
+/*
+ * Atomic operations:
+ *
+ * FAD: Fetch-And-Decrement
+ * BCAS: Binary-Compare-And-Swap
+ * VCAS: Value-Compare-And-Swap
+ */
+#if __APPLE__ && __MACH__
+        #define FAD(ptr, val) \
+                __atomic_add_fetch(ptr, val, __ATOMIC_SEQ_CST)
+        #define BCAS(ptr, expected, desired) \
+                __atomic_compare_exchange_n(ptr, expected, desired, 0, \
+                        __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST)
+        #define VCAS(ptr, expected, desired) \
+                __atomic_compare_exchange_n(ptr, expected, desired, 0, \
+                        __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST) ? (*expected) : 0
+#elif __linux__
+        #define FAD(ptr, val) \
+                __atomic_add_fetch(ptr, val, __ATOMIC_SEQ_CST)
+        #define BCAS(ptr, expected, desired) \
+                __atomic_compare_exchange_n(ptr, expected, desired, 0, \
+                        __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST)
+        #define VCAS(ptr, expected, desired) \
+                __atomic_compare_exchange_n(ptr, expected, desired, 0, \
+                        __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST) ? (*expected) : 0
+#elif _WIN32
+        #define FAD(ptr, val)
+        #define BCAS(ptr, expected, desired)
+        #define VCAS(ptr, expected, desired)
+#else
+        #error "Unsupported platform"
+#endif
 
 /*
  * Public APIs
@@ -55,12 +96,12 @@ void nb_free(void *addr);
  * TODO: Explain.
  */
 
-uint32_t __try_alloc(uint32_t node);
-void __freenode(uint32_t node, uint32_t upper_bound);
-void __unmark(uint32_t node, uint32_t upper_bound);
+uint32_t __nb_try_alloc(uint32_t node);
+void __nb_freenode(uint32_t node, uint32_t upper_bound);
+void __nb_unmark(uint32_t node, uint32_t upper_bound);
 
-uint64_t __block_size(uint32_t level);
-void __clean_block(void* addr, uint64_t size);
+uint64_t __nb_block_size(uint32_t level);
+void __nb_clean_block(void* addr, uint64_t size);
 
 /*
  * Diagnostics
@@ -74,51 +115,56 @@ void __clean_block(void* addr, uint64_t size);
  *
  * TODO:? Explain.
  */
-static inline uint8_t mark(uint8_t val, uint32_t child)
+static inline uint8_t nb_mark(uint8_t val, uint32_t child)
 {
         return ((uint8_t) (val | (OCC_LEFT >> (child % 2))));
 }
 
-static inline uint8_t unmark(uint8_t val, uint32_t child)
+static inline uint8_t nb_unmark(uint8_t val, uint32_t child)
 {
         return ((uint8_t) (val & !((OCC_LEFT | COAL_LEFT) >> (child % 2))));
 }
 
-static inline uint8_t set_coal(uint8_t val, uint32_t child)
+static inline uint8_t nb_set_coal(uint8_t val, uint32_t child)
 {
         return ((uint8_t) (val | (COAL_LEFT >> (child % 2))));
 }
 
-static inline uint8_t clean_coal(uint8_t val, uint32_t child)
+static inline uint8_t nb_clean_coal(uint8_t val, uint32_t child)
 {
         return ((uint8_t) (val & !(COAL_LEFT >> (child % 2))));
 }
 
-static inline uint8_t is_coal(uint8_t val, uint32_t child)
+static inline uint8_t nb_is_coal(uint8_t val, uint32_t child)
 {
         return ((uint8_t) (val & (COAL_LEFT >> (child % 2))));
 }
 
-static inline uint8_t is_occ_buddy(uint8_t val, uint32_t child)
+static inline uint8_t nb_is_occ_buddy(uint8_t val, uint32_t child)
 {
         return ((uint8_t) (val & (OCC_RIGHT << (child % 2))));
 }
 
-static inline uint8_t is_coal_buddy(uint8_t val, uint32_t child)
+static inline uint8_t nb_is_coal_buddy(uint8_t val, uint32_t child)
 {
         return ((uint8_t) (val & (COAL_RIGHT << (child % 2))));
 }
 
-static inline uint8_t is_free(uint8_t val)
+static inline uint8_t nb_is_free(uint8_t val)
 {
         return !(val & BUSY);
 }
 
+static inline uint32_t nb_level(uint32_t node)
+{
+        return LOG2_LOWER(node);
+}
+
 /* TODO: Ugly code; refactor */
-static inline uint32_t leftmost(uint32_t node, uint32_t depth)
+static inline uint32_t nb_leftmost(uint32_t node, uint32_t depth)
 {
         /* Index to level */
-        uint32_t level = LOG2_LOWER(node);
+        uint32_t level = nb_level(node);
 
         /* Size (in terms of leaf size) */
         uint64_t block_size = EXP2(depth - level);

@@ -6,27 +6,28 @@
 #define NBBS_H
 
 #include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 
-#include "LibKern/String.h"
+#include "NBBS.h"
 
-#include "Memory/PageDef.h"
-#include "Memory/BootMem.h"
-#include "Memory/NBBS.h"
+/* Configuration */
+static const uint64_t nb_min_size = 4096; /* bytes */
+static const uint64_t nb_max_order = 9;
 
-static volatile uint8_t *tree = 0;
-static volatile uint32_t *index = 0;
+/* Metadata */
+static uint8_t *nb_tree = 0;
+static uint32_t *nb_index = 0;
 
-static volatile uint64_t tree_size = 0; /* bytes */
-static volatile uint64_t index_size = 0; /* bytes */
+static uint64_t nb_tree_size = 0; /* bytes */
+static uint64_t nb_index_size = 0; /* bytes */
 
-static volatile uint64_t base_address = 0;
-static volatile uint64_t total_memory = 0;
-static volatile uint32_t depth = 0;
-static volatile uint64_t base_level = 0;
-static volatile uint64_t min_size = 0;
-static volatile uint64_t max_size = 0;
-static volatile uint64_t max_order = 0;
-static volatile uint32_t release_count = 0;
+static uint64_t nb_base_address = 0;
+static uint64_t nb_total_memory = 0;
+static uint32_t nb_depth = 0;
+static uint64_t nb_base_level = 0;
+static uint64_t nb_max_size = 0;
+static uint32_t nb_release_count = 0;
 
 int nb_init(uint64_t base, uint64_t size)
 {
@@ -34,55 +35,50 @@ int nb_init(uint64_t base, uint64_t size)
                 return 1;
         }
 
-        if (size < min_size) {
+        if (size < nb_min_size) {
                 return 1;
         }
 
         /* Setup */
-        base_address = base;       
-        total_memory = size;
-        min_size = PAGE_SIZE;
-        depth = LOG2_LOWER(total_memory / min_size);
-        max_order = 9;
-        max_size = EXP2(max_order) * min_size;
-        base_level = depth - max_order;
+        nb_base_address = base;       
+        nb_total_memory = size;
+        nb_depth = LOG2_LOWER(nb_total_memory / nb_min_size);
+        nb_base_level = nb_depth - nb_max_order;
+        nb_max_size = EXP2(nb_max_order) * nb_min_size;
 
         /* Calculate required tree size - root node is at index 1  */
-        uint32_t total_nodes = EXP2(depth + 1);
+        uint32_t total_nodes = EXP2(nb_depth + 1);
 
         /* Calculate required index size */
-        uint32_t total_pages = (total_memory / min_size);
+        uint32_t total_pages = (nb_total_memory / nb_min_size);
 
-        tree_size = total_nodes * 1;  // each node is 1 byte
-        index_size = total_pages * 4; // each page id is 4 byte
+        nb_tree_size = total_nodes * 1;  // each node is 1 byte
+        nb_index_size = total_pages * 4; // each leaf index is 4 byte
 
         /* Allocate */
-        uint32_t req_pages = (tree_size + PAGE_SIZE - 1) / PAGE_SIZE;
-        tree = (uint8_t*) bootmem_alloc(req_pages);
-
-        if (!tree) {
+        nb_tree = (uint8_t*) malloc(nb_tree_size);
+        if (!nb_tree) {
                 return 1;
-        } 
+        }
 
-        req_pages = (index_size + PAGE_SIZE - 1) / PAGE_SIZE;
-        index = (uint32_t*) bootmem_alloc(req_pages);
+        nb_index = (uint32_t*) malloc(nb_index_size);
 
-        if (!index) {
+        if (!nb_index) {
                 return 1;
         }
 
         /* Initialize */
-        memset((void*) tree, 0x0, tree_size);
-        memset((void*) index, 0x0, index_size);
+        memset((void*) nb_tree, 0x0, nb_tree_size);
+        memset((void*) nb_index, 0x0, nb_index_size);
 
         return 0;
 }
 
-uint32_t __try_alloc(uint32_t node)
+uint32_t __nb_try_alloc(uint32_t node)
 {
         /* Occupy the node */
         uint8_t free = 0;
-        if (!BCAS(&tree[node], &free, BUSY)) {
+        if (!BCAS(&nb_tree[node], &free, BUSY)) {
                 return node;
         }
 
@@ -90,7 +86,7 @@ uint32_t __try_alloc(uint32_t node)
         uint32_t child = 0;
 
         /* Propagate the info about the occupancy up to the ancestor node(s) */
-        while (base_level < LEVEL(current)) {
+        while (nb_base_level < nb_level(current)) {
                 child = current;
                 current = current >> 1;
 
@@ -98,16 +94,16 @@ uint32_t __try_alloc(uint32_t node)
                 uint8_t new_val = 0;
 
                 do {
-                        curr_val = tree[current];
+                        curr_val = nb_tree[current];
 
                         if (curr_val & OCC) {
-                                __freenode(node, LEVEL(child));
+                                __nb_freenode(node, nb_level(child));
                                 return current;
                         }
 
-                        new_val = clean_coal(curr_val, child);
-                        new_val = mark(new_val, child);
-                } while (!BCAS(&tree[current], &curr_val, new_val));
+                        new_val = nb_clean_coal(curr_val, child);
+                        new_val = nb_mark(new_val, child);
+                } while (!BCAS(&nb_tree[current], &curr_val, new_val));
         }
 
         return 0;
@@ -115,20 +111,20 @@ uint32_t __try_alloc(uint32_t node)
 
 void* nb_alloc(uint64_t size)
 {
-        if (max_size < size) {
+        if (nb_max_size < size) {
                 return 0;
         }
 
-        if (size < min_size) {
-                size = min_size;
+        if (size < nb_min_size) {
+                size = nb_min_size;
         }
 
         nb_alloc_again:;
-        uint32_t ts = release_count;
-        uint32_t level = LOG2_LOWER(total_memory / size);
+        uint32_t ts = nb_release_count;
+        uint32_t level = LOG2_LOWER(nb_total_memory / size);
 
-        if (depth < level) {
-                level = depth;
+        if (nb_depth < level) {
+                level = nb_depth;
         }
 
         /* Range of nodes at target level */
@@ -136,19 +132,21 @@ void* nb_alloc(uint64_t size)
         uint32_t end_node = EXP2(level + 1);
 
         for (uint32_t i = start_node; i < end_node; i++) {
-                if (is_free(tree[i])) {
-                        uint32_t failed_at = __try_alloc(i);
+                if (nb_is_free(nb_tree[i])) {
+                        uint32_t failed_at = __nb_try_alloc(i);
 
                         if (!failed_at) {
                                 /* TODO: Explain what's going on here */
-                                uint32_t leaf = leftmost(i, depth) - EXP2(depth); 
-                                index[leaf] = i;
+                                uint32_t leaf = nb_leftmost(
+                                        i, nb_depth) - EXP2(nb_depth); 
+                                nb_index[leaf] = i;
                                 
-                                return (void*) (base_address + leaf * min_size);
+                                return (void*)
+                                        (nb_base_address + leaf * nb_min_size);
                         } else {
                                 /* Skip the entire subtree [of failed] */
-                                uint32_t curr_level = LEVEL(i);
-                                uint32_t fail_level = LEVEL(failed_at);
+                                uint32_t curr_level = nb_level(i);
+                                uint32_t fail_level = nb_level(failed_at);
 
                                 uint32_t d = EXP2(curr_level - fail_level);
                                 i = (failed_at + 1) * d;
@@ -157,14 +155,14 @@ void* nb_alloc(uint64_t size)
         }
 
         /* A release occured, try again */
-        if (ts != release_count) {
+        if (ts != nb_release_count) {
                 goto nb_alloc_again;
         }
 
         return (void*) 0;
 }
 
-void __unmark(uint32_t node, uint32_t upper_bound)
+void __nb_unmark(uint32_t node, uint32_t upper_bound)
 {
         uint32_t current = node;
         uint32_t child = 0;
@@ -177,21 +175,22 @@ void __unmark(uint32_t node, uint32_t upper_bound)
                 current = current >> 1;
 
                 do {
-                        curr_val = tree[current];
+                        curr_val = nb_tree[current];
 
-                        if (!is_coal(curr_val, child)) {
+                        if (!nb_is_coal(curr_val, child)) {
                                 return;
                         }
                         
-                        new_val = unmark(curr_val, child);
-                } while (!BCAS(&tree[current], &curr_val, new_val));
-        } while (upper_bound < LEVEL(current) && !is_occ_buddy(new_val, child));
+                        new_val = nb_unmark(curr_val, child);
+                } while (!BCAS(&nb_tree[current], &curr_val, new_val));
+        } while (upper_bound < nb_level(current) &&
+                        !nb_is_occ_buddy(new_val, child));
 }
 
-void __freenode(uint32_t node, uint32_t upper_bound)
+void __nb_freenode(uint32_t node, uint32_t upper_bound)
 {
         /* TODO: should I check for double frees? */
-        if (is_free(tree[node])) {
+        if (nb_is_free(nb_tree[node])) {
                 return;
         }
 
@@ -199,18 +198,19 @@ void __freenode(uint32_t node, uint32_t upper_bound)
         uint32_t current = node >> 1;
         uint32_t child = node;
 
-        while (base_level < LEVEL(child)) {
+        while (nb_base_level < nb_level(child)) {
                 uint8_t curr_val = 0;
                 uint8_t new_val = 0;
                 uint8_t old_val = 0;
                 
                 do {
-                        curr_val = tree[current];
-                        new_val = set_coal(curr_val, child);
-                        old_val = VCAS(&tree[current], &curr_val, new_val);
+                        curr_val = nb_tree[current];
+                        new_val = nb_set_coal(curr_val, child);
+                        old_val = VCAS(&nb_tree[current], &curr_val, new_val);
                 } while (old_val != curr_val);
                 
-                if (is_occ_buddy(old_val, child) && !is_coal_buddy(old_val, child)) {
+                if (nb_is_occ_buddy(old_val, child) && 
+                        nb_is_coal_buddy(old_val, child)) {
                         break;
                 }
 
@@ -219,11 +219,11 @@ void __freenode(uint32_t node, uint32_t upper_bound)
         }
 
         /* Phase 2. Mark the node as free */
-        tree[node] = 0;
+        nb_tree[node] = 0;
 
         /* Phase 3. Propagate node release upward and possibly merge buddies */
-        if (LEVEL(node) != base_level) {
-                __unmark(node, upper_bound);
+        if (nb_level(node) != nb_base_level) {
+                __nb_unmark(node, upper_bound);
         }
 }
 
@@ -231,21 +231,22 @@ void nb_free(void *addr)
 {
         /* Range check (is this necessary?) */
         uint64_t u_addr = (uint64_t) addr;
-        if (u_addr < base_address || (base_address + total_memory) < u_addr) {
+        if (u_addr < nb_base_address ||
+                (nb_base_address + nb_total_memory) < u_addr) {
                 return;
         }
 
-        uint32_t n = (u_addr - base_address) / min_size;
-        __freenode(index[n], base_level);
-        FAD(&release_count, 1);
+        uint32_t n = (u_addr - nb_base_address) / nb_min_size;
+        __nb_freenode(nb_index[n], nb_base_level);
+        FAD(&nb_release_count, 1);
 }
 
-uint64_t __block_size(uint32_t level)
+uint64_t __nb_block_size(uint32_t level)
 {
-        return EXP2(depth - level) * min_size;
+        return EXP2(nb_depth - level) * nb_min_size;
 }
 
-void __clean_block(void* addr, uint64_t size)
+void __nb_clean_block(void* addr, uint64_t size)
 {
         if (!addr || !size) {
                 return;
