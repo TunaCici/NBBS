@@ -57,7 +57,7 @@ ARFLAGS = rcs
 ifeq (${TARGET_ARCH}, $(filter ${TARGET_ARCH}, arm arm64 aarch64))
 	CCFLAGS += -mno-outline-atomics
 else ifeq (${TARGET_ARCH}, $(filter ${TARGET_ARCH}, x86 x86_64))
-	CCFLAGS += -fno-outline-atomics
+	CCFLAGS +=
 else
 	@echo "Unkown target architecture ${TARGET_ARCH}"
 	@exit 1
