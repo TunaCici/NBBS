@@ -31,7 +31,7 @@ static uint32_t nb_release_count = 0;
 
 int nb_init(uint64_t base, uint64_t size)
 {
-        if (base == 0 | size == 0) {
+        if (base == 0 || size == 0) {
                 return 1;
         }
 
