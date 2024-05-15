@@ -1,0 +1,27 @@
+name: Build on Linux (x86_64)
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install Dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y compiledb
+
+      - name: Build all
+        run: |
+          make all
+
+      - name: Generate compile_commands
+        run: |
+          make compiledb
