@@ -12,8 +12,8 @@
 #include "nbbs.h"
 
 /* Configuration */
-static const uint64_t nb_min_size = 4096; /* bytes */
-static const uint32_t nb_max_order = 9;
+#define nb_min_size 4096ULL /* bytes */
+#define nb_max_order 9U
 
 /* Metadata */
 static uint8_t *nb_tree = 0;
