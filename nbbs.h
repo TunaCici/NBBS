@@ -1,5 +1,5 @@
 /*
- * Non-Blocking Buddy System - To be used to the new physical memory mngr.
+ * Non-Blocking Buddy System definitions
  *
  * As described in:
  * "A Non-blocking Buddy System for Scalable Memory Allocation on Multi-core 
@@ -100,7 +100,7 @@ uint32_t __nb_try_alloc(uint32_t node);
 void __nb_freenode(uint32_t node, uint32_t upper_bound);
 void __nb_unmark(uint32_t node, uint32_t upper_bound);
 
-uint64_t __nb_block_size(uint32_t level);
+uint32_t __nb_leftmost(uint32_t node, uint32_t depth);
 void __nb_clean_block(void* addr, uint64_t size);
 
 /*
@@ -109,6 +109,24 @@ void __nb_clean_block(void* addr, uint64_t size);
  * TODO: Explain.
  */
 
+uint64_t nb_diag_min_size();
+uint32_t nb_diag_max_order();
+
+uint64_t nb_diag_tree_size();
+uint64_t nb_diag_index_size();
+uint32_t nb_diag_depth();
+uint32_t nb_diag_base_level();
+uint64_t nb_diag_max_size();
+uint32_t nb_diag_release_count();
+
+uint64_t nb_diag_total_memory();
+uint64_t nb_diag_used_memory();
+
+uint64_t nb_diag_block_size(uint32_t order);
+uint64_t nb_diag_total_blocks(uint32_t order);
+uint64_t nb_diag_used_blocks(uint32_t order);
+
+uint8_t nb_diag_occupancy_map(uint8_t *buff, uint32_t order);
 
 /*
  * Helpers
@@ -158,22 +176,4 @@ static inline uint8_t nb_is_free(uint8_t val)
 static inline uint32_t nb_level(uint32_t node)
 {
         return LOG2_LOWER(node);
-}
-
-/* TODO: Ugly code; refactor */
-static inline uint32_t nb_leftmost(uint32_t node, uint32_t depth)
-{
-        /* Index to level */
-        uint32_t level = nb_level(node);
-
-        /* Size (in terms of leaf size) */
-        uint64_t block_size = EXP2(depth - level);
-
-        /* Offset within level */
-        uint64_t offset = node % EXP2(level);
-
-        /* Leftmost leaf */
-        uint32_t leftmost_leaf = EXP2(depth) + offset * block_size;
-
-        return leftmost_leaf;
 }

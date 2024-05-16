@@ -13,7 +13,7 @@
 
 /* Configuration */
 static const uint64_t nb_min_size = 4096; /* bytes */
-static const uint64_t nb_max_order = 9;
+static const uint32_t nb_max_order = 9;
 
 /* Metadata */
 static uint8_t *nb_tree = 0;
@@ -29,6 +29,9 @@ static uint64_t nb_base_level = 0;
 static uint64_t nb_max_size = 0;
 static uint32_t nb_release_count = 0;
 
+/* Diagnostic */
+static uint64_t nb_diag_alloc_blocks[nb_max_order + 1];
+
 int nb_init(uint64_t base, uint64_t size)
 {
         if (base == 0 || size == 0) {
@@ -42,6 +45,7 @@ int nb_init(uint64_t base, uint64_t size)
         /* Setup */
         nb_base_address = base;       
         nb_total_memory = size;
+        
         nb_depth = LOG2_LOWER(nb_total_memory / nb_min_size);
         nb_base_level = nb_depth - nb_max_order;
         nb_max_size = EXP2(nb_max_order) * nb_min_size;
@@ -109,6 +113,33 @@ uint32_t __nb_try_alloc(uint32_t node)
         return 0;
 }
 
+/* TODO: Ugly code; refactor */
+uint32_t __nb_leftmost(uint32_t node, uint32_t depth)
+{
+        /* Index to level */
+        uint32_t level = nb_level(node);
+
+        /* Size (in terms of leaf size) */
+        uint64_t block_size = EXP2(depth - level);
+
+        /* Offset within level */
+        uint64_t offset = node % EXP2(level);
+
+        /* Leftmost leaf */
+        uint32_t leftmost_leaf = EXP2(depth) + offset * block_size;
+
+        return leftmost_leaf;
+}
+
+void __nb_clean_block(void* addr, uint64_t size)
+{
+        if (!addr || !size) {
+                return;
+        }
+
+        memset(addr, 0x0, size);
+}
+
 void* nb_alloc(uint64_t size)
 {
         if (nb_max_size < size) {
@@ -137,9 +168,11 @@ void* nb_alloc(uint64_t size)
 
                         if (!failed_at) {
                                 /* TODO: Explain what's going on here */
-                                uint32_t leaf = nb_leftmost(
-                                        i, nb_depth) - EXP2(nb_depth); 
+                                uint32_t leaf = __nb_leftmost(
+                                        i, nb_depth) - EXP2(nb_depth);
                                 nb_index[leaf] = i;
+
+                                FAD(&nb_diag_alloc_blocks[nb_depth - level], 1);
                                 
                                 return (void*)
                                         (nb_base_address + leaf * nb_min_size);
@@ -220,6 +253,7 @@ void __nb_freenode(uint32_t node, uint32_t upper_bound)
 
         /* Phase 2. Mark the node as free */
         nb_tree[node] = 0;
+        FAD(&nb_diag_alloc_blocks[nb_depth - nb_level(node)], -1);
 
         /* Phase 3. Propagate node release upward and possibly merge buddies */
         if (nb_level(node) != nb_base_level) {
@@ -241,18 +275,107 @@ void nb_free(void *addr)
         FAD(&nb_release_count, 1);
 }
 
-uint64_t __nb_block_size(uint32_t level)
+/* ------------------------------ DIAGNOSTIC -------------------------------- */
+
+uint64_t nb_diag_min_size()
 {
-        return EXP2(nb_depth - level) * nb_min_size;
+        return nb_min_size;
 }
 
-void __nb_clean_block(void* addr, uint64_t size)
+uint32_t nb_diag_max_order()
 {
-        if (!addr || !size) {
-                return;
+        return nb_max_order;
+}
+
+uint64_t nb_diag_tree_size()
+{
+        return nb_tree_size;
+}
+
+uint64_t nb_diag_index_size()
+{
+        return nb_index_size;
+}
+
+uint32_t nb_diag_depth()
+{
+        return nb_depth;
+}
+
+uint32_t nb_diag_base_level()
+{
+        return nb_base_level;
+}
+
+uint64_t nb_diag_max_size()
+{
+        return nb_max_size;
+}
+
+uint32_t nb_diag_release_count()
+{
+        return nb_release_count;
+}
+
+
+uint64_t nb_diag_total_memory()
+{
+        return nb_total_memory;
+}
+
+uint64_t nb_diag_used_memory()
+{
+        uint64_t used_memory = 0;
+
+        for (uint32_t i = 0; i <= nb_max_order; i++) {
+                used_memory += nb_diag_alloc_blocks[i] * nb_diag_block_size(i);
         }
 
-        memset(addr, 0x0, size);
+        return used_memory;
+}
+
+uint64_t nb_diag_block_size(uint32_t order)
+{
+        if (nb_max_order < order) {
+                return 0;
+        }
+
+        return EXP2(order) * nb_min_size;
+}
+
+uint64_t nb_diag_total_blocks(uint32_t order)
+{
+        if (nb_max_order < order) {
+                return 0;
+        }
+
+        return nb_total_memory / nb_diag_block_size(order);
+}
+
+uint64_t nb_diag_used_blocks(uint32_t order)
+{
+        if (nb_max_order < order) {
+                return 0;
+        }
+        
+        return nb_diag_alloc_blocks[order];
+}
+
+
+uint8_t nb_diag_occupancy_map(uint8_t *buff, uint32_t order)
+{
+        if (!buff || nb_max_order < order) {
+                return 0;
+        }
+
+        uint32_t start_node = EXP2(nb_depth - order);
+        uint32_t end_node = EXP2(nb_depth - order + 1);
+
+        for (uint32_t i = start_node; i < end_node; i++) {
+                buff[i - start_node] = !nb_is_free(nb_tree[i]);
+        }
+
+        return 1;
 }
 
 #endif /* NBBS_H */
