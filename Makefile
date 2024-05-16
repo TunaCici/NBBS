@@ -6,7 +6,6 @@
 
 # Project
 PROJECT_NAME 	= NBBS
-PROJECT_DIR 	= ${shell pwd}
 BUILD_DIR 	= Build
 TEST_DIR	= Tests
 
@@ -52,7 +51,7 @@ endif
 
 # Flags
 INCLUDES = \
-	-I Tests/googletest/googletest/include
+	-I . -I Tests/googletest/googletest/include
 CCFLAGS = ${INCLUDES} -O3 \
 	-Wall -Wextra -std=gnu99
 CXXFLAGS = ${INCLUDES} -g \
@@ -87,16 +86,11 @@ GTEST_CXXFLAGS = ${INCLUDES} -g -Wall -Wextra -std=c++20
 # Test source files
 TEST_SRCS = \
 	nbbs.c \
-	Tests/nbbs-helpers.cpp
+	Tests/nbbs-helpers.cpp \
+	Tests/nbbs-private.cpp \
+	Tests/nbbs-init.cpp
 TEST_OBJS := ${filter %.o, ${TEST_SRCS:.c=.o}}
 TEST_OBJS += ${filter %.o, ${TEST_SRCS:.cpp=.o}}
-
-# To sw
-ifeq (${TEST}, True)
-	OBJ_DIR = ${TEST_DIR}
-else
-	OBJ_DIR = ${BUILD_DIR}
-endif
 
 # To switch between normal and test builds
 IS_TEST ?= False
