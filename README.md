@@ -12,12 +12,13 @@ The physcical memory management system (PMM) I was using was requiring read/writ
 This meant that my kernel would be identity mapped and have full access over the system memory.
 And I don't really like the idea of kernel being in control of everything and every process.
 
-Soon, I decided to ditch the old PMM. Now, I needed to find an ideal successor. to An ideal PMM for WesterOS's kernel would have:
+So, I decided to ditch the old PMM in an effort to find an ideal successor. An ideal PMM for WesterOS's kernel would have:
 
 * Static metadata structure.
     * One that does not require access to blocks. (just an observer)
 * Lightweight metadata structure.
     * Shouldn't waste too much memory with large arena sizes.
+
 
 
 # Algorithm
@@ -33,5 +34,19 @@ TODO.
 TODO.
 
 # API
+
+## Initialize
+
+TODO.
+
+## Allocate
+
+TODO.
+
+## Free
+
+TODO.
+
+## Diagnostics
 
 TODO.
