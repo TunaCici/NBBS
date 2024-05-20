@@ -29,8 +29,8 @@ static uint64_t nb_base_level = 0;
 static uint64_t nb_max_size = 0;
 static uint32_t nb_release_count = 0;
 
-/* Diagnostic */
-static uint64_t nb_diag_alloc_blocks[nb_max_order + 1];
+/* Statistics */
+static uint64_t nb_stat_alloc_blocks[nb_max_order + 1];
 
 int nb_init(uint64_t base, uint64_t size)
 {
@@ -172,7 +172,7 @@ void* nb_alloc(uint64_t size)
                                         i, nb_depth) - EXP2(nb_depth);
                                 nb_index[leaf] = i;
 
-                                FAD(&nb_diag_alloc_blocks[nb_depth - level], 1);
+                                FAD(&nb_stat_alloc_blocks[nb_depth - level], 1);
                                 
                                 return (void*)
                                         (nb_base_address + leaf * nb_min_size);
@@ -253,7 +253,7 @@ void __nb_freenode(uint32_t node, uint32_t upper_bound)
 
         /* Phase 2. Mark the node as free */
         nb_tree[node] = 0;
-        FAD(&nb_diag_alloc_blocks[nb_depth - nb_level(node)], -1);
+        FAD(&nb_stat_alloc_blocks[nb_depth - nb_level(node)], -1);
 
         /* Phase 3. Propagate node release upward and possibly merge buddies */
         if (nb_level(node) != nb_base_level) {
@@ -275,66 +275,66 @@ void nb_free(void *addr)
         FAD(&nb_release_count, 1);
 }
 
-/* ------------------------------ DIAGNOSTIC -------------------------------- */
+/* ------------------------------ STATISTICS -------------------------------- */
 
-uint64_t nb_diag_min_size()
+uint64_t nb_stat_min_size()
 {
         return nb_min_size;
 }
 
-uint32_t nb_diag_max_order()
+uint32_t nb_stat_max_order()
 {
         return nb_max_order;
 }
 
-uint64_t nb_diag_tree_size()
+uint64_t nb_stat_tree_size()
 {
         return nb_tree_size;
 }
 
-uint64_t nb_diag_index_size()
+uint64_t nb_stat_index_size()
 {
         return nb_index_size;
 }
 
-uint32_t nb_diag_depth()
+uint32_t nb_stat_depth()
 {
         return nb_depth;
 }
 
-uint32_t nb_diag_base_level()
+uint32_t nb_stat_base_level()
 {
         return nb_base_level;
 }
 
-uint64_t nb_diag_max_size()
+uint64_t nb_stat_max_size()
 {
         return nb_max_size;
 }
 
-uint32_t nb_diag_release_count()
+uint32_t nb_stat_release_count()
 {
         return nb_release_count;
 }
 
 
-uint64_t nb_diag_total_memory()
+uint64_t nb_stat_total_memory()
 {
         return nb_total_memory;
 }
 
-uint64_t nb_diag_used_memory()
+uint64_t nb_stat_used_memory()
 {
         uint64_t used_memory = 0;
 
         for (uint32_t i = 0; i <= nb_max_order; i++) {
-                used_memory += nb_diag_alloc_blocks[i] * nb_diag_block_size(i);
+                used_memory += nb_stat_alloc_blocks[i] * nb_stat_block_size(i);
         }
 
         return used_memory;
 }
 
-uint64_t nb_diag_block_size(uint32_t order)
+uint64_t nb_stat_block_size(uint32_t order)
 {
         if (nb_max_order < order) {
                 return 0;
@@ -343,26 +343,26 @@ uint64_t nb_diag_block_size(uint32_t order)
         return EXP2(order) * nb_min_size;
 }
 
-uint64_t nb_diag_total_blocks(uint32_t order)
+uint64_t nb_stat_total_blocks(uint32_t order)
 {
         if (nb_max_order < order) {
                 return 0;
         }
 
-        return nb_total_memory / nb_diag_block_size(order);
+        return nb_total_memory / nb_stat_block_size(order);
 }
 
-uint64_t nb_diag_used_blocks(uint32_t order)
+uint64_t nb_stat_used_blocks(uint32_t order)
 {
         if (nb_max_order < order) {
                 return 0;
         }
         
-        return nb_diag_alloc_blocks[order];
+        return nb_stat_alloc_blocks[order];
 }
 
 
-uint8_t nb_diag_occupancy_map(uint8_t *buff, uint32_t order)
+uint8_t nb_stat_occupancy_map(uint8_t *buff, uint32_t order)
 {
         if (!buff || nb_max_order < order) {
                 return 0;

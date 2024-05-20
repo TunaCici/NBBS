@@ -104,29 +104,29 @@ uint32_t __nb_leftmost(uint32_t node, uint32_t depth);
 void __nb_clean_block(void* addr, uint64_t size);
 
 /*
- * Diagnostics
+ * Statistics
  *
  * TODO: Explain.
  */
 
-uint64_t nb_diag_min_size();
-uint32_t nb_diag_max_order();
+uint64_t nb_stat_min_size();
+uint32_t nb_stat_max_order();
 
-uint64_t nb_diag_tree_size();
-uint64_t nb_diag_index_size();
-uint32_t nb_diag_depth();
-uint32_t nb_diag_base_level();
-uint64_t nb_diag_max_size();
-uint32_t nb_diag_release_count();
+uint64_t nb_stat_tree_size();
+uint64_t nb_stat_index_size();
+uint32_t nb_stat_depth();
+uint32_t nb_stat_base_level();
+uint64_t nb_stat_max_size();
+uint32_t nb_stat_release_count();
 
-uint64_t nb_diag_total_memory();
-uint64_t nb_diag_used_memory();
+uint64_t nb_stat_total_memory();
+uint64_t nb_stat_used_memory();
 
-uint64_t nb_diag_block_size(uint32_t order);
-uint64_t nb_diag_total_blocks(uint32_t order);
-uint64_t nb_diag_used_blocks(uint32_t order);
+uint64_t nb_stat_block_size(uint32_t order);
+uint64_t nb_stat_total_blocks(uint32_t order);
+uint64_t nb_stat_used_blocks(uint32_t order);
 
-uint8_t nb_diag_occupancy_map(uint8_t *buff, uint32_t order);
+uint8_t nb_stat_occupancy_map(uint8_t *buff, uint32_t order);
 
 /*
  * Helpers
