@@ -10,12 +10,10 @@ extern "C" {
 
 TEST(NBBS, init)
 {
-        /* Alloc 1 max_size block, in case the base_addr is not aligned */
         uint8_t *playground = static_cast<uint8_t*>(
                 std::aligned_alloc(nbbs_max_size, nbbs_total_memory)
         );
-
-        std::fill_n(playground, nbbs_total_memory, 0);
+        std::fill_n(playground, nbbs_total_memory / sizeof(uint8_t), 0);
 
         /* Empty base address OR size is NOT allowed */
         EXPECT_EQ(1, nb_init(0x0, 0));

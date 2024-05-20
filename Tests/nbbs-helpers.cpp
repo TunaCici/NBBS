@@ -22,6 +22,14 @@ TEST(NBBS, helpers)
         status = nb_unmark(status, 1);
         EXPECT_EQ(0, status);
 
+        /* Full occupied */
+        status = BUSY;
+        status = nb_unmark(status, 0);
+        EXPECT_EQ(OCC | OCC_RIGHT, status);
+        status = nb_unmark(status, 1);
+        EXPECT_EQ(OCC, status);
+        status = 0;
+
         /* Left coalescing */
         status = nb_set_coal(status, 0);
         EXPECT_EQ(COAL_LEFT, status);

@@ -2,8 +2,6 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-
-
 #include "nbbs.h"
 
 int main()
@@ -41,29 +39,29 @@ int main()
                 my_arr[i] = rand();
         }
 
-        /* 4. Get diagnostics */
-        printf("Total memory: %llu KiBs\n", nb_diag_total_memory() / 1024);
-        printf("\tUsed: %llu \n", nb_diag_used_memory());
-        printf("\tFree: %llu \n", nb_diag_total_memory() - nb_diag_used_memory());
+        /* 4. Get statistics */
+        printf("Total memory: %llu KiBs\n", nb_stat_total_memory() / 1024);
+        printf("\tUsed: %llu \n", nb_stat_used_memory());
+        printf("\tFree: %llu \n", nb_stat_total_memory() - nb_stat_used_memory());
 
-        printf("Max [alloc] size: %llu KiBs\n", nb_diag_max_size() / 1024);
-        printf("Min [alloc] size: %llu KiBs\n", nb_diag_min_size() / 1024);
+        printf("Max [alloc] size: %llu KiBs\n", nb_stat_max_size() / 1024);
+        printf("Min [alloc] size: %llu KiBs\n", nb_stat_min_size() / 1024);
 
-        printf("Tree size: %llu KiBs\n", nb_diag_tree_size() / 1024);
-        printf("Index size: %llu KiBs\n", nb_diag_index_size() / 1024);
+        printf("Tree size: %llu KiBs\n", nb_stat_tree_size() / 1024);
+        printf("Index size: %llu KiBs\n", nb_stat_index_size() / 1024);
 
-        printf("Depth: %u\n", nb_diag_depth());
-        printf("Base level: %u\n", nb_diag_base_level());
-        printf("Max order: %u\n", nb_diag_max_order());
-        printf("Release count: %u\n", nb_diag_release_count());
+        printf("Depth: %u\n", nb_stat_depth());
+        printf("Base level: %u\n", nb_stat_base_level());
+        printf("Max order: %u\n", nb_stat_max_order());
+        printf("Release count: %u\n", nb_stat_release_count());
 
         uint32_t order = 9;
-        uint32_t block_size = nb_diag_block_size(order);
+        uint32_t block_size = nb_stat_block_size(order);
 
         printf("Order %u has size %u KiBs\n", order, block_size / 1024);
 
         uint8_t *occupancy_map = NULL;
-        uint32_t occupancy_map_size = nb_diag_total_blocks(order);
+        uint32_t occupancy_map_size = nb_stat_total_blocks(order);
 
         occupancy_map = (uint8_t*) malloc(occupancy_map_size);
         if (!occupancy_map) {
@@ -71,9 +69,9 @@ int main()
                 return 1;
         }
 
-        result = nb_diag_occupancy_map(occupancy_map, order);
+        result = nb_stat_occupancy_map(occupancy_map, order);
         if (!result) {
-                printf("[!] nb_diag_occupancy_map(0x%p, %u) fail\n",
+                printf("[!] nb_stat_occupancy_map(0x%p, %u) fail\n",
                         occupancy_map, order);
                 return 1;
         }
