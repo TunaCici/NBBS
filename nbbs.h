@@ -140,7 +140,7 @@ static inline uint8_t nb_mark(uint8_t val, uint32_t child)
 
 static inline uint8_t nb_unmark(uint8_t val, uint32_t child)
 {
-        return ((uint8_t) (val & !((OCC_LEFT | COAL_LEFT) >> (child % 2))));
+        return ((uint8_t) (val & ~((OCC_LEFT | COAL_LEFT) >> (child % 2))));
 }
 
 static inline uint8_t nb_set_coal(uint8_t val, uint32_t child)
@@ -150,7 +150,7 @@ static inline uint8_t nb_set_coal(uint8_t val, uint32_t child)
 
 static inline uint8_t nb_clean_coal(uint8_t val, uint32_t child)
 {
-        return ((uint8_t) (val & !(COAL_LEFT >> (child % 2))));
+        return ((uint8_t) (val & ~(COAL_LEFT >> (child % 2))));
 }
 
 static inline uint8_t nb_is_coal(uint8_t val, uint32_t child)

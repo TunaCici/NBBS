@@ -30,7 +30,7 @@ static uint64_t nb_max_size = 0;
 static uint32_t nb_release_count = 0;
 
 /* Statistics */
-static uint64_t nb_stat_alloc_blocks[nb_max_order + 1];
+static uint64_t nb_stat_alloc_blocks[nb_max_order + 1] = {0};
 
 int nb_init(uint64_t base, uint64_t size)
 {
@@ -253,7 +253,6 @@ void __nb_freenode(uint32_t node, uint32_t upper_bound)
 
         /* Phase 2. Mark the node as free */
         nb_tree[node] = 0;
-        FAD(&nb_stat_alloc_blocks[nb_depth - nb_level(node)], -1);
 
         /* Phase 3. Propagate node release upward and possibly merge buddies */
         if (nb_level(node) != nb_base_level) {
@@ -273,6 +272,7 @@ void nb_free(void *addr)
         uint32_t n = (u_addr - nb_base_address) / nb_min_size;
         __nb_freenode(nb_index[n], nb_base_level);
         FAD(&nb_release_count, 1);
+        FAD(&nb_stat_alloc_blocks[nb_depth - nb_level(nb_index[n])], -1);
 }
 
 /* ------------------------------ STATISTICS -------------------------------- */
