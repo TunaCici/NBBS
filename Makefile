@@ -52,8 +52,8 @@ endif
 # Flags
 INCLUDES = \
 	-I . -I Tests/googletest/googletest/include
-CCFLAGS = ${INCLUDES} -O3 \
-	-Wall -Wextra -std=gnu99
+CCFLAGS = ${INCLUDES} -g \
+	-Wall -Wextra -std=c11
 CXXFLAGS = ${INCLUDES} -g \
 	-Wall -Wextra -std=c++20
 ARFLAGS = rcs
@@ -88,7 +88,9 @@ TEST_SRCS = \
 	nbbs.c \
 	Tests/nbbs-helpers.cpp \
 	Tests/nbbs-private.cpp \
-	Tests/nbbs-init.cpp
+	Tests/nbbs-init.cpp \
+	Tests/nbbs-statistics.cpp \
+	Tests/nbbs-alloc-single.cpp
 TEST_OBJS := ${filter %.o, ${TEST_SRCS:.c=.o}}
 TEST_OBJS += ${filter %.o, ${TEST_SRCS:.cpp=.o}}
 

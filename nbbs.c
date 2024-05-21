@@ -74,6 +74,9 @@ int nb_init(uint64_t base, uint64_t size)
         /* Initialize */
         memset((void*) nb_tree, 0x0, nb_tree_size);
         memset((void*) nb_index, 0x0, nb_index_size);
+        memset((void*) nb_stat_alloc_blocks, 0x0, ((nb_max_order + 1) * 8));
+        // ------------------------------------------- sizeof(uint64_t) ^
+        nb_release_count = 0;
 
         return 0;
 }
