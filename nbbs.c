@@ -182,7 +182,7 @@ void* nb_alloc(uint64_t size)
                                 uint32_t fail_level = nb_level(failed_at);
 
                                 uint32_t d = EXP2(curr_level - fail_level);
-                                i = (failed_at + 1) * d;
+                                i = ((failed_at + 1) * d) - 1;
                         }
                 }
         }
