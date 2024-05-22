@@ -90,7 +90,8 @@ TEST_SRCS = \
 	Tests/nbbs-private.cpp \
 	Tests/nbbs-init.cpp \
 	Tests/nbbs-statistics.cpp \
-	Tests/nbbs-alloc-single.cpp
+	Tests/nbbs-alloc-single.cpp \
+	Tests/nbbs-free-single.cpp
 TEST_OBJS := ${filter %.o, ${TEST_SRCS:.c=.o}}
 TEST_OBJS += ${filter %.o, ${TEST_SRCS:.cpp=.o}}
 
