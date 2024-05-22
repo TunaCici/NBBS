@@ -265,15 +265,13 @@ void __nb_freenode(uint32_t node, uint32_t upper_bound)
 
 void nb_free(void *addr)
 {
-        /* Range check (is this necessary?) */
-        uint64_t u_addr = (uint64_t) addr;
-        if (u_addr < nb_base_address ||
-                (nb_base_address + nb_total_memory) < u_addr) {
+        if (!addr) {
                 return;
         }
 
-        uint32_t n = (u_addr - nb_base_address) / nb_min_size;
+        uint32_t n = ((uint64_t) addr - nb_base_address) / nb_min_size;
         __nb_freenode(nb_index[n], nb_base_level);
+
         FAD(&nb_release_count, 1);
         FAD(&nb_stat_alloc_blocks[nb_depth - nb_level(nb_index[n])], -1);
 }
