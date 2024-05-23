@@ -12,6 +12,9 @@
  * Author: Tuna CICI
  */
 
+#ifndef NBBS_H
+#define NBBS_H
+
 #include <stdint.h>
 
 /*
@@ -32,8 +35,17 @@
 #define BUSY            (OCC | OCC_LEFT | OCC_RIGHT)
 
 /*
+ * Configuration
+ */
+
+#define NB_MIN_SIZE 4096ULL /* bytes */
+#define NB_MAX_ORDER 9U
+#define NB_MALLOC(size) malloc(size)
+
+/*
  * Math functions
  */
+
 #if __APPLE__ && __MACH__
         #define EXP2(n) (0x1ULL << (n))
         #define LOG2_LOWER(n) (64ULL - __builtin_clzll(n) - 1ULL) // 64 bit
@@ -54,6 +66,7 @@
  * BCAS: Binary-Compare-And-Swap
  * VCAS: Value-Compare-And-Swap
  */
+
 #if __APPLE__ && __MACH__
         #define FAD(ptr, val) \
                 __atomic_add_fetch(ptr, val, __ATOMIC_SEQ_CST)
@@ -177,3 +190,5 @@ static inline uint32_t nb_level(uint32_t node)
 {
         return LOG2_LOWER(node);
 }
+
+#endif /* NBBS_H */

@@ -2,18 +2,11 @@
  * This file (NBSS.c) implements the Non-Blocking Buddy System
  */
 
-#ifndef NBBS_H
-#define NBBS_H
-
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "nbbs.h"
-
-/* Configuration */
-#define nb_min_size 4096ULL /* bytes */
-#define nb_max_order 9U
 
 /* Metadata */
 static uint8_t *nb_tree = 0;
@@ -30,7 +23,7 @@ static uint64_t nb_max_size = 0;
 static uint32_t nb_release_count = 0;
 
 /* Statistics */
-static uint64_t nb_stat_alloc_blocks[nb_max_order + 1] = {0};
+static uint64_t nb_stat_alloc_blocks[NB_MAX_ORDER + 1] = {0};
 
 int nb_init(uint64_t base, uint64_t size)
 {
@@ -38,7 +31,7 @@ int nb_init(uint64_t base, uint64_t size)
                 return 1;
         }
 
-        if (size < nb_min_size) {
+        if (size < NB_MIN_SIZE) {
                 return 1;
         }
 
@@ -46,26 +39,26 @@ int nb_init(uint64_t base, uint64_t size)
         nb_base_address = base;       
         nb_total_memory = size;
         
-        nb_depth = LOG2_LOWER(nb_total_memory / nb_min_size);
-        nb_base_level = nb_depth - nb_max_order;
-        nb_max_size = EXP2(nb_max_order) * nb_min_size;
+        nb_depth = LOG2_LOWER(nb_total_memory / NB_MIN_SIZE);
+        nb_base_level = nb_depth - NB_MAX_ORDER;
+        nb_max_size = EXP2(NB_MAX_ORDER) * NB_MIN_SIZE;
 
         /* Calculate required tree size - root node is at index 1  */
         uint32_t total_nodes = EXP2(nb_depth + 1);
 
         /* Calculate required index size */
-        uint32_t total_pages = (nb_total_memory / nb_min_size);
+        uint32_t total_pages = (nb_total_memory / NB_MIN_SIZE);
 
         nb_tree_size = total_nodes * 1;  // each node is 1 byte
         nb_index_size = total_pages * 4; // each leaf index is 4 byte
 
         /* Allocate */
-        nb_tree = (uint8_t*) malloc(nb_tree_size);
+        nb_tree = (uint8_t*) NB_MALLOC(nb_tree_size);
         if (!nb_tree) {
                 return 1;
         }
 
-        nb_index = (uint32_t*) malloc(nb_index_size);
+        nb_index = (uint32_t*) NB_MALLOC(nb_index_size);
 
         if (!nb_index) {
                 return 1;
@@ -74,7 +67,7 @@ int nb_init(uint64_t base, uint64_t size)
         /* Initialize */
         memset((void*) nb_tree, 0x0, nb_tree_size);
         memset((void*) nb_index, 0x0, nb_index_size);
-        memset((void*) nb_stat_alloc_blocks, 0x0, ((nb_max_order + 1) * 8));
+        memset((void*) nb_stat_alloc_blocks, 0x0, ((NB_MAX_ORDER + 1) * 8));
         // ------------------------------------------- sizeof(uint64_t) ^
         nb_release_count = 0;
 
@@ -149,8 +142,8 @@ void* nb_alloc(uint64_t size)
                 return 0;
         }
 
-        if (size < nb_min_size) {
-                size = nb_min_size;
+        if (size < NB_MIN_SIZE) {
+                size = NB_MIN_SIZE;
         }
 
         nb_alloc_again:;
@@ -178,7 +171,7 @@ void* nb_alloc(uint64_t size)
                                 FAD(&nb_stat_alloc_blocks[nb_depth - level], 1);
                                 
                                 return (void*)
-                                        (nb_base_address + leaf * nb_min_size);
+                                        (nb_base_address + leaf * NB_MIN_SIZE);
                         } else {
                                 /* Skip the entire subtree [of failed] */
                                 uint32_t curr_level = nb_level(i);
@@ -269,7 +262,7 @@ void nb_free(void *addr)
                 return;
         }
 
-        uint32_t n = ((uint64_t) addr - nb_base_address) / nb_min_size;
+        uint32_t n = ((uint64_t) addr - nb_base_address) / NB_MIN_SIZE;
         __nb_freenode(nb_index[n], nb_base_level);
 
         FAD(&nb_release_count, 1);
@@ -280,12 +273,12 @@ void nb_free(void *addr)
 
 uint64_t nb_stat_min_size()
 {
-        return nb_min_size;
+        return NB_MIN_SIZE;
 }
 
 uint32_t nb_stat_max_order()
 {
-        return nb_max_order;
+        return NB_MAX_ORDER;
 }
 
 uint64_t nb_stat_tree_size()
@@ -328,7 +321,7 @@ uint64_t nb_stat_used_memory()
 {
         uint64_t used_memory = 0;
 
-        for (uint32_t i = 0; i <= nb_max_order; i++) {
+        for (uint32_t i = 0; i <= NB_MAX_ORDER; i++) {
                 used_memory += nb_stat_alloc_blocks[i] * nb_stat_block_size(i);
         }
 
@@ -337,16 +330,16 @@ uint64_t nb_stat_used_memory()
 
 uint64_t nb_stat_block_size(uint32_t order)
 {
-        if (nb_max_order < order) {
+        if (NB_MAX_ORDER < order) {
                 return 0;
         }
 
-        return EXP2(order) * nb_min_size;
+        return EXP2(order) * NB_MIN_SIZE;
 }
 
 uint64_t nb_stat_total_blocks(uint32_t order)
 {
-        if (nb_max_order < order) {
+        if (NB_MAX_ORDER < order) {
                 return 0;
         }
 
@@ -355,7 +348,7 @@ uint64_t nb_stat_total_blocks(uint32_t order)
 
 uint64_t nb_stat_used_blocks(uint32_t order)
 {
-        if (nb_max_order < order) {
+        if (NB_MAX_ORDER < order) {
                 return 0;
         }
         
@@ -365,7 +358,7 @@ uint64_t nb_stat_used_blocks(uint32_t order)
 
 uint8_t nb_stat_occupancy_map(uint8_t *buff, uint32_t order)
 {
-        if (!buff || nb_max_order < order) {
+        if (!buff || NB_MAX_ORDER < order) {
                 return 0;
         }
 
@@ -378,5 +371,3 @@ uint8_t nb_stat_occupancy_map(uint8_t *buff, uint32_t order)
 
         return 1;
 }
-
-#endif /* NBBS_H */
