@@ -12,6 +12,10 @@
  * Author: Tuna CICI
  */
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #ifndef NBBS_H
 #define NBBS_H
 
@@ -192,3 +196,7 @@ static inline uint32_t nb_level(uint32_t node)
 }
 
 #endif /* NBBS_H */
+
+#ifdef __cplusplus
+}
+#endif
