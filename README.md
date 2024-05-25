@@ -1,6 +1,12 @@
 # NBBS
 Non-Blocking Buddy System allocator for multithreaded applications. Based on the research done by R. Marotta et al. titled 'NBBS' in 2021. 
 
+Platform | Compilers | Architectures
+:--- | :--- | :--- 
+macOS | Clang, GCC | arm64
+Linux | Clang, GCC | arm64, x64 
+Windows | Clang, MSVC | x64
+
 # Quick Access
 
 TODO.
