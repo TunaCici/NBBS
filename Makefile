@@ -7,7 +7,6 @@
 # Project
 PROJECT_NAME 	= NBBS
 BUILD_DIR 	= Build
-TEST_DIR	= Tests
 
 # Colored printing
 RED 	= \033[0;31m
@@ -51,7 +50,8 @@ endif
 
 # Flags
 INCLUDES = \
-	-I . -I Tests/googletest/googletest/include
+	-I . \
+	-I Tests/googletest/googletest/include
 CCFLAGS = ${INCLUDES} -g \
 	-Wall -Wextra -std=c11
 CXXFLAGS = ${INCLUDES} -g \
@@ -68,22 +68,23 @@ else
 	@exit 1
 endif
 
-# Project source files
-SRCS = \
-	nbbs.c
-OBJS = ${SRCS:.c=.o}
+# Source files
+BENCH_SRCS = \
+	nbbs.c \
+	Benchmarks/bench.cpp \
+	Benchmarks/alloc-rnd-multi.cpp \
+	Benchmarks/alloc-rnd-single.cpp \
+	Benchmarks/alloc-seq-multi.cpp \
+	Benchmarks/alloc-seq-single.cpp \
+	Benchmarks/free-rnd-multi.cpp \
+	Benchmarks/free-rnd-single.cpp \
+	Benchmarks/free-seq-multi.cpp \
+	Benchmarks/free-seq-single.cpp \
+	Benchmarks/stress-multi.cpp \
+	Benchmarks/stress-single.cpp
+BENCH_OBJS := ${filter %.o, ${BENCH_SRCS:.c=.o}}
+BENCH_OBJS += ${filter %.o, ${BENCH_SRCS:.cpp=.o}}
 
-# GoogleTest
-GTEST_DIR = Tests/googletest/googletest
-GTEST_HEADERS = ${GTEST_DIR}/include/gtest/*.h \
-                ${GTEST_DIR}/include/gtest/internal/*.h
-GTEST_SRCS = ${GTEST_DIR}/src/*.cc ${GTEST_DIR}/src/*.h ${GTEST_HEADERS}
-GTEST_LIBS = libgtest.a libgtest_main.a
-
-GTEST_CPPFLAGS = ${INCLUDES} -g -isystem ${GTEST_DIR}/include
-GTEST_CXXFLAGS = ${INCLUDES} -g -Wall -Wextra -std=c++20
-
-# Test source files
 TEST_SRCS = \
 	nbbs.c \
 	Tests/nbbs-helpers.cpp \
@@ -97,35 +98,31 @@ TEST_SRCS = \
 TEST_OBJS := ${filter %.o, ${TEST_SRCS:.c=.o}}
 TEST_OBJS += ${filter %.o, ${TEST_SRCS:.cpp=.o}}
 
-# To switch between normal and test builds
-IS_TEST ?= False
+# GoogleTest
+GTEST_DIR = Tests/googletest/googletest
+GTEST_HEADERS = ${GTEST_DIR}/include/gtest/*.h \
+                ${GTEST_DIR}/include/gtest/internal/*.h
+GTEST_SRCS = ${GTEST_DIR}/src/*.cc ${GTEST_DIR}/src/*.h ${GTEST_HEADERS}
+GTEST_LIBS = libgtest.a libgtest_main.a
+
+GTEST_CPPFLAGS = ${INCLUDES} -g -isystem ${GTEST_DIR}/include
+GTEST_CXXFLAGS = ${INCLUDES} -g -Wall -Wextra -std=c++20
 
 %.o: %.c
-ifeq (${IS_TEST}, True)
-	@echo "CC $<"
-	@${CC} ${CCFLAGS} -c $< -o ${TEST_DIR}/${notdir $@}
-	@echo "CC $< ${GREEN}ok${NC}"
-else
 	@echo "CC $<"
 	@${CC} ${CCFLAGS} -c $< -o ${BUILD_DIR}/${notdir $@}
 	@echo "CC $< ${GREEN}ok${NC}"
-endif
 
 %.o: %.cpp
-ifeq (${IS_TEST}, True)
-	@echo "CXX $<"
-	@${CXX} ${CXXFLAGS} -c $< -o ${TEST_DIR}/${notdir $@}
-	@echo "CXX $< ${GREEN}ok${NC}"
-else
 	@echo "CXX $<"
 	@${CXX} ${CXXFLAGS} -c $< -o ${BUILD_DIR}/${notdir $@}
 	@echo "CXX $< ${GREEN}ok${NC}"
-endif
 
-${PROJECT_NAME}.a: ${OBJS}
-	@echo "AR ${PROJECT_NAME}.a"
-	@${AR} ${ARFLAGS} ${PROJECT_NAME}.a ${addprefix ${BUILD_DIR}/, $(notdir ${OBJS})}
-	@echo "AR ${PROJECT_NAME}.a ${GREEN}ok${NC}"
+bench: ${BENCH_OBJS}
+	@echo "CXX ${addprefix ${BUILD_DIR}/, $(notdir ${BENCH_OBJS})}} -o $@"
+	@${CXX} ${CXXFLAGS} \
+		${addprefix ${BUILD_DIR}/, $(notdir ${BENCH_OBJS})} -o $@
+	@echo "CXX ${addprefix ${BUILD_DIR}/, $(notdir ${BENCH_OBJS})} -o $@ ${GREEN}ok${NC}"
 
 compiledb:
 	@echo "COMPILEDB -n make all"
@@ -137,12 +134,11 @@ all:
 	@echo "CC: ${shell ${CC} --version | head -n 1}"
 	@echo "CXX: ${shell ${CXX} --version | head -n 1}"
 
-	@echo "--------------------- ${BLUE} BUILD LIBRARY ${NC} ---------------------"
-	@mkdir -p ${BUILD_DIR}
-	@${MAKE} ${PROJECT_NAME}.a
+	@echo "--------------------- ${BLUE} BUILD BENCHMARKS ${NC} ---------------------"
+	@${MAKE} bench
 
 	@echo "--------------------- ${BLUE} BUILD TESTS ${NC} ----------------------"
-	@${MAKE} all_test IS_TEST=True
+	@${MAKE} all_test
 
 	@echo "---------------------------------------------------------"
 	@echo "Build ${GREEN}complete${NC}. Enjoy life <3"
@@ -151,31 +147,31 @@ all:
 libgtest.a: ${GTEST_SRCS}
 	@echo "CXX $<"
 	@${CXX} ${GTEST_CPPFLAGS} ${GTEST_CXXFLAGS} -I${GTEST_DIR} -c \
-            ${GTEST_DIR}/src/gtest-all.cc -o ${TEST_DIR}/gtest-all.o
+            ${GTEST_DIR}/src/gtest-all.cc -o ${BUILD_DIR}/gtest-all.o
 	@echo "CXX $< ${GREEN}ok${NC}"
 
-	@echo "AR ${TEST_DIR}/$@"	
-	@${AR} ${ARFLAGS} ${TEST_DIR}/$@ \
-		${TEST_DIR}/gtest-all.o
-	@echo "AR ${TEST_DIR}/$@ ${GREEN}ok${NC}"
+	@echo "AR ${BUILD_DIR}/$@"	
+	@${AR} ${ARFLAGS} ${BUILD_DIR}/$@ \
+		${BUILD_DIR}/gtest-all.o
+	@echo "AR ${BUILD_DIR}/$@ ${GREEN}ok${NC}"
 
 libgtest_main.a: libgtest.a ${GTEST_SRCS}
 	@echo "CXX src/gtest_main.cc"
 	@${CXX} ${GTEST_CPPFLAGS} ${GTEST_CXXFLAGS} -I${GTEST_DIR} -c \
-            ${GTEST_DIR}/src/gtest_main.cc -o ${TEST_DIR}/gtest_main.o
+            ${GTEST_DIR}/src/gtest_main.cc -o ${BUILD_DIR}/gtest_main.o
 	@echo "CXX src/gtest_main.cc ${GREEN}ok${NC}"
 
-	@echo "AR ${TEST_DIR}/$@"	
-	@${AR} ${ARFLAGS} ${TEST_DIR}/$@ \
-		${TEST_DIR}/gtest-all.o ${TEST_DIR}/gtest_main.o
-	@echo "AR ${TEST_DIR}/$@ ${GREEN}ok${NC}"
+	@echo "AR ${BUILD_DIR}/$@"	
+	@${AR} ${ARFLAGS} ${BUILD_DIR}/$@ \
+		${BUILD_DIR}/gtest-all.o ${BUILD_DIR}/gtest_main.o
+	@echo "AR ${BUILD_DIR}/$@ ${GREEN}ok${NC}"
 
 all_test: ${TEST_OBJS} ${GTEST_LIBS}
-	@echo "CXX ${addprefix ${TEST_DIR}/, $(notdir ${TEST_OBJS})} ${TEST_DIR}/libgtest_main.a"
+	@echo "CXX ${addprefix ${BUILD_DIR}/, $(notdir ${TEST_OBJS})} ${BUILD_DIR}/libgtest_main.a"
 	@${CXX} ${GTEST_CPPFLAGS} ${GTEST_CXXFLAGS} \
-		${addprefix ${TEST_DIR}/, $(notdir ${TEST_OBJS})} \
-		${TEST_DIR}/libgtest_main.a -o ${TEST_DIR}/all_test
-	@echo "CXX ${TEST_OBJS} ${addprefix ${TEST_DIR}/, $(notdir ${OBJS})} ${TEST_DIR}/libgtest_main.a ${GREEN}ok${NC}"
+		${addprefix ${BUILD_DIR}/, $(notdir ${TEST_OBJS})} \
+		${BUILD_DIR}/libgtest_main.a -o all_test
+	@echo "CXX ${TEST_OBJS} ${addprefix ${BUILD_DIR}/, $(notdir ${OBJS})} ${BUILD_DIR}/libgtest_main.a ${GREEN}ok${NC}"
 
 test:
 	@echo "------------------------ ${MAGENTA} BINARIES ${NC} ------------------------"
@@ -189,21 +185,17 @@ test:
 	@${TEST_DIR}/all_test
 
 clean:
-	@echo "Delete all object files (*.o)"
+	@echo "Delete object files (*.o)"
 	@find ${BUILD_DIR} -name "*.o" -type f -delete
-	@echo "Delete  all object files (*.o) ${GREEN}ok${NC}"
+	@echo "Delete object files (*.o) ${GREEN}ok${NC}"
 
-	@echo "Delete library (${PROJECT_NAME}.a)"
-	@find ${BUILD_DIR} -name ${PROJECT_NAME}.a -type f -delete
-	@echo "Delete library (${PROJECT_NAME}.a ${GREEN}ok${NC}"
+	@echo "Delete library files (*.a|*.so)"
+	@find ${BUILD_DIR} -name "*.a" -type f -delete
+	@find ${BUILD_DIR} -name "*.so" -type f -delete
+	@echo "Delete library files (*.a|*.so) ${GREEN}ok${NC}"
 
-	@echo "Delete all test files under ${TEST_DIR}"
-	@find ${TEST_DIR} -name "*.o" -type f -delete
-	@find ${TEST_DIR} -name "*.a" -type f -delete
-	@find ${TEST_DIR} -name "${TEST_OBJS}" -type f -delete
-	@find ${TEST_DIR} -name "All_Test" -type f -delete
-	@echo "Delete all test files under ${TEST_DIR} ${GREEN}ok${NC}"
+	@echo "Delete bench & all_test"
+	@rm -f bench
+	@rm -f all_test
+	@echo "Delete bench & all_test ${GREEN}ok${NC}"
 
-	@echo "Delete 'compile_commands.json'"
-	@find . -name "compile_commands.json" -type f -delete
-	@echo "Delete 'compile_commands.json' ${GREEN}ok${NC}"
