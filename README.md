@@ -1,4 +1,5 @@
-# NBBS
+![](/Media/NBBS_Header.png)
+
 Non-Blocking Buddy System allocator for multithreaded applications. Based on the research done by R. Marotta et al. titled 'NBBS' in 2021. 
 
 Platform | Compilers | Architectures
@@ -24,8 +25,6 @@ So, I decided to ditch the old PMM in an effort to find an ideal successor. An i
     * One that does not require access to blocks. (just an observer)
 * Lightweight metadata structure.
     * Shouldn't waste too much memory with large arena sizes.
-
-
 
 # Algorithm
 
@@ -53,6 +52,6 @@ TODO.
 
 TODO.
 
-## Diagnostics
+## Statistics
 
 TODO.
