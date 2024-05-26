@@ -182,7 +182,7 @@ test:
 	@${MAKE} all_test IS_TEST=True
 
 	@echo "------------------------ ${GREEN} TEST ${NC} ------------------------"
-	@${TEST_DIR}/all_test
+	@./all_test
 
 clean:
 	@echo "Delete object files (*.o)"
