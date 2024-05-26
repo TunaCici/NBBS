@@ -18,6 +18,7 @@ void show_help() {
               << "   --multi,           Multi-threaded\n"
               << "   --threads N,       Thread count (default: 4)\n"
               << "   --iterations N,    Number of iterations (default: 100)\n"
+              << "   --duration S,      Duration for stress test (default: 30)\n"
               << "   --output FILE,     Output file (default: results.txt)\n"
               << "   --help,            Show this help message\n"
               << std::endl;
@@ -33,12 +34,16 @@ int main(int argc, char *argv[])
         /* Default values */
         std::string benchmark = "latency";
         std::string output = "results.txt";
+
         bool is_multi = false;
-        unsigned long iterations = 100;
-        unsigned long threads = 4;
+
+        unsigned ic = 100;
+        unsigned tc = 4;
+        unsigned dur = 30;
 
         /* Argument parsing (ugly code) */
         std::vector<std::string> args(argv + 1, argv + argc);
+
         for (size_t i = 0; i < args.size(); i++) {
                 if (args[i] == "--alloc-rnd" || args[i] == "--alloc-seq" ||
                     args[i] == "--free-rnd" || args[i] == "--free-seq" ||
@@ -46,18 +51,25 @@ int main(int argc, char *argv[])
                         benchmark = args[i].substr(2);
                 } else if (args[i] == "--multi") {
                         is_multi = true;
+                } else if (args[i] == "--threads") {
+                         if (i + 1 < args.size()) {
+                                tc = std::stoul(args[++i]);
+                        } else {
+                                std::cerr << "Error: --threads requires a number" << std::endl;
+                                return 1;
+                        }
                 } else if (args[i] == "--iterations") {
                          if (i + 1 < args.size()) {
-                                iterations = std::stoul(args[++i]);
+                                ic = std::stoul(args[++i]);
                         } else {
                                 std::cerr << "Error: --iterations requires a number" << std::endl;
                                 return 1;
                         }
-                } else if (args[i] == "--threads") {
+                } else if (args[i] == "--duration") {
                          if (i + 1 < args.size()) {
-                                threads = std::stoul(args[++i]);
+                                dur = std::stoul(args[++i]);
                         } else {
-                                std::cerr << "Error: --threads requires a number" << std::endl;
+                                std::cerr << "Error: --duration requires a number" << std::endl;
                                 return 1;
                         }
                 } else if (args[i] == "--output") {
@@ -77,46 +89,50 @@ int main(int argc, char *argv[])
                 }
         }
 
+        /* Verbose */
+        std::cout << "Running '" << benchmark << "' with options:\n"
+                  << "\tMulti-threaded: " << is_multi << "\n";
+        if (benchmark == "stress") {
+                std::cout << "\tDuration: " << dur << "s\n";
+        } else {
+                std::cout << "\tIterations: " << ic << "\n";
+        }
+        std::cout << "\tOutput: " << output << std::endl;
+
         /* Run the corressponding benchmark */
+        std::ofstream ofs(output, std::ios::out | std::ios::binary);
         int res = 0;
-        std::ofstream out_file(output, std::ios::out | std::ios::binary);
 
         if (benchmark == "alloc-rnd") {
-                res = is_multi ? alloc_rnd_multi(out_file, iterations, threads):
-                        alloc_rnd_single(out_file, iterations);
+                res = is_multi ? alloc_rnd_multi(ofs, ic, tc):
+                        alloc_rnd_single(ofs, ic);
         } else if (benchmark == "alloc-seq") {
-                res = is_multi ? alloc_seq_multi(out_file, iterations, threads):
-                        alloc_seq_single(out_file, iterations);
+                res = is_multi ? alloc_seq_multi(ofs, ic, tc):
+                        alloc_seq_single(ofs, ic);
         } else if (benchmark == "free-rnd") {
-                res = is_multi ? free_rnd_multi(out_file, iterations, threads):
-                        free_rnd_single(out_file, iterations);
+                res = is_multi ? free_rnd_multi(ofs, ic, tc):
+                        free_rnd_single(ofs, ic);
         } else if (benchmark == "free-seq") {
-                res = is_multi ? free_seq_multi(out_file, iterations, threads):
-                        free_seq_single(out_file, iterations);
+                res = is_multi ? free_seq_multi(ofs, ic, tc):
+                        free_seq_single(ofs, ic);
         } else if (benchmark == "stress") {
-                res = is_multi ? stress_multi(out_file, iterations, threads):
-                        stress_single(out_file, iterations);
+                res = is_multi ? stress_multi(ofs, dur, tc):
+                        stress_single(ofs, dur);
         } else {
                 std::cerr << "Unknown benchmark: " << benchmark << std::endl;
                 res = 1;
         }
         
         if (!res) {
-                std::cout << "Success: " << benchmark;
-                if (is_multi) {
-                        std::cout << ": multi-threaded /w "
-                                  << threads << " threads";
-                } else {
-                        std::cout << ": single-threaded";
-                }
-                std::cout << " /w " << iterations << " iterations" << std::endl;
-
                 /* Write to file */
-                out_file.flush();
-                out_file.close();
-
-                std::cout << "Results are saved to '" << output << "'" << std::endl;
+                ofs.flush();
+                std::cout << "Saving results to: " << output << std::endl;
+        } else {
+                ofs.clear();
+                std::cout << "Something went wrong: " << res << std::endl;
         }
+
+        ofs.close();
 
         return res;
 }

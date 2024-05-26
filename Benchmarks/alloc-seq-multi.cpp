@@ -1,5 +1,7 @@
 #include <iostream>
 #include <sstream>
+#include <fstream>
+#include <vector>
 #include <thread>
 #include <chrono>
 
@@ -7,47 +9,51 @@
 
 void alloc_seq_multi_runner(std::ostringstream& os, int tid)
 {
-        for (auto j = 0; j < BENCH_BATCH_SIZE; j++) {
+        auto alloc_size = nb_stat_block_size(0);
+
+        std::cout << FUNC_NAME << ": thread" << tid << ": start\n" << std::flush;
+
+        for (unsigned j = 0; j < BENCH_BATCH_SIZE; j++) {
                 auto start = std::chrono::high_resolution_clock::now();
-                void *ptr = (void*) BENCH_MALLOC(BENCH_ALLOC_SIZE);
+                void *ptr = (void*) BENCH_MALLOC(alloc_size);
                 auto durr = std::chrono::high_resolution_clock::now() - start;
 
                 if (!ptr) {
-                        std::cerr << "Error: alloc_seq_multi: "
-                                  << "thread #" << tid << " BENCH_MALLOC failed"
-                                  << std::endl;
+                        std::cerr << FUNC_NAME
+                                  << "BENCH_MALLOC fail" << std::endl;
                         std::exit(1);
                 }
-                auto us = std::chrono::duration_cast<std::chrono::microseconds>(durr).count();
-                float mem_usage = (float) nb_stat_used_memory() /
+
+                auto us = std::chrono::duration_cast
+                        <std::chrono::microseconds>(durr).count();
+                float usage = (float) nb_stat_used_memory() /
                         nb_stat_total_memory() * 100;
                 
-                os << "(" << us << "us, " << mem_usage << "%), ";
+                os << "alloc (" << us << "us, " << usage << "%), ";
         }
+        std::cout << FUNC_NAME << ": thread" << tid << ": done\n" << std::flush;
 }
 
-int alloc_seq_multi(std::ofstream& of, unsigned long iterations, unsigned long thread_count)
+int alloc_seq_multi(std::ofstream& ofs, unsigned ic, unsigned tc)
 {
-        of << "alloc_seq_multi\n";
+        ofs << FUNC_NAME << "\n";
 
-        /* Force the OS to map/alloc all the arena - preheating */
-        void *arena = (void*) NB_MALLOC(ARENA_SIZE);
-        memset(arena, 0x0, ARENA_SIZE);
+        bench_alloc_init();
 
-        /* Initialize */
-        if (nb_init((uint64_t) arena, ARENA_SIZE) != 0) {
-                std::cerr << "Error: alloc_seq_multi: initialization failed" << std::endl;
-                return 1;
-        }
-
-        std::vector<std::ostringstream> streams = {};
+        std::vector<std::ostringstream> streams(tc);
         std::vector<std::thread> threads = {};
-        for (auto i = 0; i < iterations; i++) {
-                for (auto i = 0; i < thread_count; i++) {
+
+        std::cout << FUNC_NAME << "main: start" << std::endl;
+
+        for (unsigned i = 0; i < ic; i++) {
+                std::cout << FUNC_NAME << "main: iter: "
+                          << i << " / " << ic << "\r";
+                
+                for (unsigned j = 0; j < tc; j++) {
                         streams.push_back(std::ostringstream());
                 }
 
-                for (auto j = 0; j < thread_count; j++) {
+                for (unsigned j = 0; j < tc; j++) {
                         threads.push_back(
                                 std::thread(alloc_seq_multi_runner,
                                         std::ref(streams[j]), j)
@@ -57,15 +63,16 @@ int alloc_seq_multi(std::ofstream& of, unsigned long iterations, unsigned long t
                 /* Wait for them */
                 for (auto& thread : threads) { thread.join(); }
 
-                for (auto j = 0; j < thread_count; j++) {
-                        of << "iter: " << i << ": "
-                           << "thread #" << j << ": " << streams[j].str();
-                        of << "\n";
+                for (unsigned j = 0; j < tc; j++) {
+                        ofs << "iter: " << i << ": "
+                            << "thread" << j << ": " << streams[j].str();
+                        ofs << "\n";
                 }
 
                 streams.clear();
                 threads.clear();
         }
+        std::cout << FUNC_NAME << "main: done" << std::endl;
 
         return 0;
 }

@@ -1,43 +1,54 @@
 #include <iostream>
+#include <fstream>
 #include <vector>
 #include <chrono>
 
 #include "bench.hpp"
 
-int alloc_seq_single(std::ofstream& of, unsigned long iterations)
+static inline void do_iter(std::ofstream& ofs)
 {
-        of << "alloc_seq_single\n";
+        for (unsigned j = 0; j < BENCH_BATCH_SIZE; j++) {
+                auto alloc_size = nb_stat_block_size(0);
 
-        /* Force the OS to map/alloc all the arena - preheating */
-        void *arena = (void*) NB_MALLOC(ARENA_SIZE);
-        memset(arena, 0x0, ARENA_SIZE);
+                auto start = std::chrono::high_resolution_clock::now();
+                void *ptr = (void*) BENCH_MALLOC(alloc_size);
+                auto durr = std::chrono::high_resolution_clock::now() - start;
 
-        /* Initialize */
-        if (nb_init((uint64_t) arena, ARENA_SIZE) != 0) {
-                std::cerr << "Error: alloc_seq_single: initialization failed" << std::endl;
-                return 1;
-        }
-
-        for (auto i = 0; i < iterations; i++) {
-                of << "iter: " << i  << ": ";
-
-                for (auto j = 0; j < BENCH_BATCH_SIZE; j++) {
-                        auto start = std::chrono::high_resolution_clock::now();
-                        void *ptr = (void*) BENCH_MALLOC(BENCH_ALLOC_SIZE);
-                        auto durr = std::chrono::high_resolution_clock::now() - start;
-
-                        if (!ptr) {
-                                std::cerr << "Error: alloc_seq_single: BENCH_MALLOC failed" << std::endl;
-                                return 1;
-                        }
-                        auto us = std::chrono::duration_cast<std::chrono::microseconds>(durr).count();
-                        float mem_usage = (float) nb_stat_used_memory() /
-                                nb_stat_total_memory() * 100;
-                        
-                        of << "(" << us << "us, " << mem_usage << "%), ";
+                if (!ptr) {
+                        std::cerr << FUNC_NAME
+                                  << "BENCH_MALLOC fail" << std::endl;
+                        std::exit(1);
                 }
-                of << "\n";
+
+                auto us = std::chrono::duration_cast
+                        <std::chrono::microseconds>(durr).count();
+                float usage = (float) nb_stat_used_memory() /
+                        nb_stat_total_memory() * 100;
+                
+                ofs << "alloc (" << us << "us, " << usage << "%), ";
         }
+}
+
+int alloc_seq_single(std::ofstream& ofs, unsigned ic)
+{
+        ofs << FUNC_NAME << "\n";
+
+        bench_alloc_init();
+
+        std::cout << FUNC_NAME << ": start" << std::endl;
+
+        for (unsigned i = 0; i < ic; i++) {
+                ofs << "iter: " << i << ": ";
+
+                std::cout << FUNC_NAME << ": iter: "
+                          << i << " / " << ic << "\r";
+
+                do_iter(ofs);
+                
+                ofs << "\n";
+        }
+        std::cout << FUNC_NAME << ": done" << std::endl;
+
 
         return 0;
 }

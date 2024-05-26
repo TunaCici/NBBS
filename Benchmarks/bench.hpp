@@ -1,31 +1,81 @@
-/* Benchmarks */
-#include <cstdint>
+/*
+ * Benchmark function dedfinitions & configurations
+ */
+
+#include <iostream>
 #include <fstream>
 
 #include "nbbs.h"
 
-#define ARENA_SIZE (6ULL * 1024 * 1024 * 1024) /* Bytes */
-
-#define BENCH_BATCH_SIZE 100ULL /* Allocs/frees in one iteration */
-#define BENCH_ALLOC_SIZE (4 * 1024) /* Bytes */
-
-#define BENCH_STRESS_UPPER 0.95f /* Percent */
-#define BENCH_STRESS_LOWER 0.05f /* Percent */
-#define BENCH_STRESS_PERIOD 100 /* Millisecond */
-#define BENCH_STRESS_RUN 3 /* Seconds */
+#ifdef _WIN32
+        #define FUNC_NAME __FUNCSIG__
+#else
+        #define FUNC_NAME __FUNCTION__
+#endif
 
 #define BENCH_MALLOC(size) nb_alloc(size)
 #define BENCH_FREE(addr) nb_free(addr)
+#define BENCH_ARENA_SIZE (6ULL * 1024 * 1024 * 1024) /* Bytes */
+#define BENCH_ARENA_ALIGN (2ULL * 1024 * 1024) /* Bytes */
 
-int alloc_rnd_multi(std::ofstream& of, unsigned long iterations, unsigned long thread_count);
-int alloc_rnd_single(std::ofstream& of, unsigned long iterations);
-int alloc_seq_multi(std::ofstream& of, unsigned long iterations, unsigned long thread_count);
-int alloc_seq_single(std::ofstream& of, unsigned long iterations);
+#define BENCH_BATCH_SIZE 100ULL /* Allocs/frees in one iteration */
+#define BENCH_STRESS_UPPER 0.95f /* Percent */
+#define BENCH_STRESS_LOWER 0.05f /* Percent */
+#define BENCH_STRESS_PERIOD 100 /* Millisecond */
 
-int free_rnd_multi(std::ofstream& of, unsigned long iterations, unsigned long thread_count);
-int free_rnd_single(std::ofstream& of, unsigned long iterations);
-int free_seq_multi(std::ofstream& of, unsigned long iterations, unsigned long thread_count);
-int free_seq_single(std::ofstream& of, unsigned long iterations);
+/*
+ * bench_alloc_init()
+ *
+ * Creates arena for the allocator & initializes it.
+ */
+static inline void bench_alloc_init()
+{
+        std::cout <<  "Initialize arena" << std::endl;
+        uint8_t *arena = (uint8_t*) std::aligned_alloc(
+                BENCH_ARENA_ALIGN, BENCH_ARENA_SIZE);
+        if (!arena) {
+                std::cerr << "Initialize arena fail" << std::endl;
+                std::exit(1);
+        }
+        std::cout <<  "Initialize arena ok" << std::endl;
 
-int stress_multi(std::ofstream& of, unsigned long iterations, unsigned long thread_count);
-int stress_single(std::ofstream& of, unsigned long iterations);
+        /* Preheating - force OS to have mappings ready */
+        std::cout <<  "Preheat arena" << std::endl;
+        std::fill_n(arena, BENCH_ARENA_SIZE / sizeof(uint8_t), 0);
+        std::cout <<  "Preheat arena ok" << std::endl;
+
+        /* Allocator init */
+        std::cout << "Initialize allocator" << std::endl;
+        if (nb_init((uint64_t) arena, BENCH_ARENA_SIZE) != 0) {
+                std::cerr << "Initialize allocator fail" << std::endl;
+                std::exit(1);
+        }
+        std::cout << "Initialize allocator ok" << std::endl;
+}
+
+/*
+ * Abbrevations
+ *
+ * rnd: random
+ * multi: multi-threaded
+ * single: single-threaded
+ * 
+ * ofs: output file stream
+ * ic: iteration count
+ * tc: thread count
+ * dur: duration in seconds
+ */
+
+int alloc_rnd_multi(std::ofstream& ofs, unsigned ic, unsigned tc);
+int alloc_rnd_single(std::ofstream& ofs, unsigned ic);
+int alloc_seq_multi(std::ofstream& ofs, unsigned ic, unsigned tc);
+int alloc_seq_single(std::ofstream& ofs, unsigned ic);
+
+int free_rnd_multi(std::ofstream& ofs, unsigned ic, unsigned tc);
+int free_rnd_single(std::ofstream& ofs, unsigned ic);
+int free_seq_multi(std::ofstream& ofs, unsigned ic, unsigned tc);
+int free_seq_single(std::ofstream& ofs, unsigned ic);
+
+int stress_multi(std::ofstream& ofs, unsigned dur, unsigned tc);
+int stress_single(std::ofstream& ofs, unsigned dur);
+
