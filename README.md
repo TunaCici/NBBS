@@ -14,9 +14,9 @@ Below is a list of highlights of the NBBS:
 * **Non-Blocking Design**: Avoids spin-locks; thus, concurrent accesses from different cores won't block each other. This greatly `reduces latency` of operations like allocation and release compared to other blocking designs.
 * **Cache Play**: The tree & index data structure is designed as a continuous heap. This and the algorithm meta-data being close to each other in memory helps to `reduce cache misses`.
 * **Memory Overhead**: The size of the data structures maintained depends on the *total arena size* & the desired *minimum allocation size*. A rough formula to find data structure memory overhead is: 
-  *  **nb_tree_size:** `2 * (arena_size / min_alloc_size) * 1 bytes`
-    * **nb_index_size:** `(arena_size / min_alloc_size) * 4 bytes`
-    * *For example; 6 GiB arena size /w 4 KiB minimum allocation size would cost ~9 MiB or `~0.14%`.*
+  * **nb_tree_size:** `2 * (arena_size / min_alloc_size) * 1 bytes`
+  * **nb_index_size:** `(arena_size / min_alloc_size) * 4 bytes`
+  * *For example; 6 GiB arena size /w 4 KiB minimum allocation size would cost ~9 MiB or `~0.14%`.*
 
 For more information refer to the original research on *ieeexplore*: [NBBS: A Non-Blocking Buddy System for Multi-Core Machines
 ](https://ieeexplore.ieee.org/document/9358002)
@@ -24,17 +24,28 @@ For more information refer to the original research on *ieeexplore*: [NBBS: A No
 
 # Vision
 
-While I was designing WesterOS's kernel, I realized a relatively big security risk.
-The physcical memory management system (PMM) I was using was requiring read/write access for all the blocks it was keeping track of.
-This meant that my kernel would be identity mapped and have full access over the system memory.
-And I don't really like the idea of kernel being in control of everything and every process.
+While I was designing [WesterOS](https://github.com/TunaCici/WesterOS)'s kernel, I realized a relatively big security risk.
+The physcical memory management system (PMM) I was using require read/write access for all the blocks it was keeping track of.
+Since my kernel is responsible for all the memory, this meant that it would be identity mapped and have full access over the system memory.
+And I did not really like the idea of kernel having the whole memory mapped in it's address space.
 
 So, I decided to ditch the old PMM in an effort to find an ideal successor. An ideal PMM for WesterOS's kernel would have:
 
-* Static metadata structure.
-    * One that does not require access to blocks. (just an observer)
-* Lightweight metadata structure.
-    * Shouldn't waste too much memory with large arena sizes.
+* **Static Data Structure**
+  * It should have a static and complete data structure; within one memory chunk
+  * Current one uses the whole memory as the data structure (e.g., [freelist](https://www.kernel.org/doc/gorman/html/understand/understand009.html#:~:text=struct%20are%20simply%3A-,free_list,-A%20linked%20list))
+* **Low Memory Overhead**
+  * It should not waste too much memory for large arena sizes
+  * Current one does not have much memory overhead, but if I were to put the linked list inside a heap the overhead would become ~5%
+* **Thread Safety**
+  * It should play nice with multiple threads & cores as to be future-proof for WesterOS
+  * Current one is not designed to be thread-safe
+
+After a long research and asking around communities, I found [NBBS](https://ieeexplore.ieee.org/document/9358002).
+It was a good match for what I was looking for.
+However, the [reference implementation](https://github.com/HPDCS/NBBS) wasn't really plug-and-play and did stuff not mentioned by the original research.
+I then decided to implement it myself and share it with others.
+This way people would have access to an open-source NBBS allocator where they can just plug it into their systems without much effort.
 
 # Algorithm
 
@@ -56,7 +67,7 @@ Below diagram visualizes the difference between NBBS's level and Linux's order.
 
 !["NBBS and Linux Term Comparison"](/Media/NBBS_Linux.png)
 
-Public API is not affected from this terminology interchange. I have defined the following macro for users to configure in place of the base_level as seen in the original work.
+Public APIs are not affected from this terminology interchange. I have defined the following macro for users to configure in place of the base_level as seen in the original work.
 
 ```c
 #define NB_MAX_ORDER 9U
@@ -76,7 +87,34 @@ TODO.
 
 # Usage
 
-Tested on the following:
+To use the NBBS allocator in a C/C++ project you need to [nbbs.h]() and [nbbs.c]() into your builds.
+After that, you probably would want to configure the following in `nbbs.h`:
+
+* `NB_MIN_SIZE`: Minimum allocation size in bytes. (e.g., 4096, 16384 or 65536)
+* `NB_MAX_ORDER`: Maximum order, which defines the maximum allocation size (e.g., 10, 12, 16)
+* `NB_MALLOC()`: Allocator that is needed for `nb_tree` and `nb_index` data structures
+
+The first value `NB_MIN_SIZE` depends greatly on your project & design goal.
+It's generally set to [Translation granule](https://developer.arm.com/documentation/101811/0103/Translation-granule) on Aarch64 platforms and [Page size](https://en.wikipedia.org/wiki/Page_(computer_memory)#Page_size) on others like x86 & AMD64.
+
+Max order, again, depends on your design goals. NBBS combines this value with `NB_MIN_SIZE` to calculate the maximum allocation size.
+Maximum allocation size is calculated using the formula: `(2^NB_MAX_ORDER) * NB_MIN_SIZE`. Higher the order, higher the maximum allocation size.
+[On Linux this is set to 9*](https://www.kernel.org/doc/gorman/html/understand/understand009.html#:~:text=pages%2C%20where%20the-,MAX_ORDER,-is%20currently%20defined). (*actually it is 10, but it's not inclusive)
+
+The last one `NB_MALLOC()` requires a bit more attention. The size required by NBBS data structures depends on the arena size.
+Larger arena size, means larger data structures. On most systems, arena size is not known during compilation.
+So, NBBS cannot pre-allocate & initialize it's data strucutres. Therefore, it relies on another allocator for it's initialization.
+For example, Linux have what it's [bootmem](https://www.kernel.org/doc/html/v4.19/core-api/boot-time-mm.html) to handle these kind of requests.
+You need to provide an allocator for the NBBS by defining `NB_MALLOC()`.
+
+> If you somehow know what your system arena size will be, then you can modify the `nb_init()` to have it's data structures initialized.
+> To do this, calculate the required size for `nb_tree()` and `nb_index` using the above formulas. Then, have them point to the arena you created. Don't forget to modify the `nb_tree_size` and `nb_index_size` as well.
+
+## Unit Tests
+
+I have provided some basic Google Test unit here in the repository. You can use them as an example how to setup, use and test on your system.
+
+They are built and tested on the following compilers and architectures. Feel free to contribute and make NBBS available on others.
 
 Platform | Compilers | Architectures
 :--- | :--- | :--- 
@@ -84,7 +122,23 @@ macOS | Clang, GCC | arm64
 Linux | Clang, GCC | arm64, x64 
 Windows | Clang, MSVC | x64
 
-TODO.
+Follow the below steps to run the unit test on Linux & macOS platforms.
+
+```bash
+# 0. Make sure 'git', 'make' and 'gcc | clang' is installed
+
+# 1. Clone this repository
+git clone https://github.com/TunaCici/NBBS.git
+
+# 2. Init git submodules (e.g., Google Test)
+git submodule update --init --recursive
+
+# 3. Build unit tests; this will automatically run the tests
+make test
+
+# X. (Optionally) Run the ./all_test with Google Test parameters
+./all_test --gtest_repeat=1000
+```
 
 # API
 
@@ -234,7 +288,7 @@ Arguments:
 uint8_t nb_stat_occupancy_map(uint8_t *buff, uint32_t order);
 ```
 
-Fills the provided buffer with the occupancy status of blocks at the specified order. Each byte in the buffer represents whether a block is free (value `0`) or occupied/allocated (value `"`).
+Fills the provided `buff` with the occupancy status of blocks at the specified `order`. Each byte in the buffer represents whether a block is free (value `0`) or occupied/allocated (value `1`).
 
 The buffer size must be atleast `nb_stat_block_size(order)`. Otherwise the function has undefined behaviour.
 
