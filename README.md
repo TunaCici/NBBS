@@ -50,13 +50,13 @@ Node | Block |
 Level* | Order* |
 Base Level | Max Order |
 
-The above terms are practically the same thing in terms of implementation except level*. Each node in the tree has a level ranging from 0 to depth (both inclusive). The size of the memory are the node responsible of decreases as the level increases. Comperatively each block in the tree has an order ranging from 0 to max_order (both inclusive). The size of the block increases as it's order increases. 
+The above terms are practically the same thing in terms of implementation except the Level*. Each node in the tree has a level ranging from 0 to `depth` (both inclusive). The size of the memory area the node is responsible of, decreases as the level increases. Comperatively each block in the tree has an order ranging from 0 to `max_order` (both inclusive). The size of the block increases as it's order increases. 
 
 Below diagram visualizes the difference between NBBS's level and Linux's order.
 
 !["NBBS and Linux Term Comparison"](/Media/NBBS_Linux.png)
 
-Public API is not affected from this terminology concept. I have defined the following macro in place of the base_level as seen in the original work.
+Public API is not affected from this terminology interchange. I have defined the following macro for users to configure in place of the base_level as seen in the original work.
 
 ```c
 #define NB_MAX_ORDER 9U
@@ -92,16 +92,159 @@ TODO.
 
 ## Initialize
 
-TODO.
+```c
+int nb_init(uint64_t base, uint64_t size)
+```
+
+Initializes the NBBS to keep track of a memory region ranging from `base` to `base+size` (only `base` is inclusive). The initialization process is as follows:
+
+1. Setup up meta-data info (e.g., `nb_depth`, `nb_base_address`)
+2. Calculate the required memory size for the `nb_tree` and `nb_index` data structures
+3. Try to allocate memory using `NB_MALLOC()` as defined in `nbbs.h`
+4. Initialize both `nb_tree`, `nb_index` and `nb_stat_alloc_blocks` as `0x0`
+
+Arguments:
+* `uint64_t base`: Base address of the arena
+* `uint64_t size`: Size of the arena
+
+Returns a non-zero value to indicate an error if:
+* `base` or `size` is `0`
+* `size` is smaller than `NB_MIN_SIZE`
+
+Otherwise, returns `0` to indicate initialization was successfull.
 
 ## Allocate
 
-TODO.
+```c
+void* nb_alloc(uint64_t size)
+```
+
+Allocates a memory block with the specified `size`, rounding it up to the nearest upper power-of-two size. If size is `0` it is rounded up to `NB_MIN_SIZE`.
+
+Arguments:
+* `uint64_t size`: Size of the required allocation in bytes
+
+Returns `0` to indicate an error if:
+* `size` is greater than `nb_max_size`
+* No free block is found at the given size
+
+Otherwise, returns the base address of the memory block.
 
 ## Free
 
-TODO.
+```c
+void nb_free(void *addr)
+```
+
+Frees the memory block pointed by `addr` as it's base address. If `addr` is 0, the function does nothing. Be careful not to give an address outside the range specified in `nb_init()` as it does not perform a range check. It is undefined behaviour if you decide to do so.
+
+Returns nothing.
 
 ## Statistics
 
-TODO.
+```c
+uint64_t nb_stat_min_size();
+```
+
+Returns the minimum allocation size allowed (a.k.a. page size) defined by the user as `NB_MIN_SIZE` in `nbbs.h`. 
+
+
+```c
+uint32_t nb_stat_max_order();
+```
+
+Returns the maximum order, which defines the largest allocation size allowed as defined by the user as `NB_MAX_ORDER` in `nbbs.h`.
+
+```c
+uint64_t nb_stat_tree_size();
+```
+
+Returns the size of the tree data structure in bytes.
+
+```c
+uint64_t nb_stat_index_size();
+```
+
+Returns the size of the index data structure in bytes.
+
+```c
+uint32_t nb_stat_depth();
+```
+
+Returns the depth of the tree.
+
+```c
+uint32_t nb_stat_base_level();
+```
+
+Returns the base level used by the NBBS.
+
+```c
+uint64_t nb_stat_max_size();
+```
+
+Returns the maximum allocation size allowed.
+
+```c
+uint32_t nb_stat_release_count();
+```
+
+Returns the number of releases done by the NBBS. The value is rounded to 0 if `uint32_t` overflows. 
+
+```c
+uint64_t nb_stat_total_memory();
+```
+
+Returns the size of the memory region (a.k.a. arena) managed by the NBBS in bytes. 
+
+```c
+uint64_t nb_stat_used_memory();
+```
+
+Returns the current amount of memory allocated in bytes.
+
+```c
+uint64_t nb_stat_block_size(uint32_t order);
+```
+
+Returns the size of a block at the specified `order`.
+
+Arguments:
+* `uint32_t order`: Order of the block size to retrieve
+
+```c
+uint64_t nb_stat_total_blocks(uint32_t order);
+```
+
+Returns the total number of blocks at the specified order.
+
+Arguments:
+* `uint32_t order`: Order of the blocks to count
+
+```c
+uint64_t nb_stat_used_blocks(uint32_t order);
+```
+
+Returns the number of used blocks at the specified order.
+
+Arguments:
+* `uint32_t order`: Order of the blocks to count
+
+```c
+uint8_t nb_stat_occupancy_map(uint8_t *buff, uint32_t order);
+```
+
+Fills the provided buffer with the occupancy status of blocks at the specified order. Each byte in the buffer represents whether a block is free (value `0`) or occupied/allocated (value `"`).
+
+The buffer size must be atleast `nb_stat_block_size(order)`. Otherwise the function has undefined behaviour.
+
+Arguments:
+* uint8_t *buff: Buffer to fill with occupancy data
+* uint32_t order: The order of the blocks to check
+ 
+Returns a non-zero value to indicate an error if:
+* Buffer is `0`
+* Oder is greater than `NB_MAX_ORDER`
+
+Otherwise, returns `0` to indicate a success.
+
