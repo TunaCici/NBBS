@@ -3,10 +3,37 @@
 #include <vector>
 #include <chrono>
 #include <random>
+#include <thread>
+#include <algorithm>
 
 #include "bench.hpp"
 
-int free_rnd_single(std::ofstream& ofs, unsigned ic)
+static inline int do_work(std::ofstream& ofs, std::vector<void*>& allocs)
+{
+        auto batch_size = std::min((size_t) BENCH_BATCH_SIZE, allocs.size());
+
+        for (unsigned j = 0; j < batch_size; j++) {
+                void *addr = allocs.back();
+
+                auto start = std::chrono::high_resolution_clock::now();
+                BENCH_FREE(addr);
+                auto durr = std::chrono::high_resolution_clock::now() - start;
+
+                auto us = std::chrono::duration_cast
+                        <std::chrono::microseconds>(durr).count();
+                float usage = (float) nb_stat_used_memory() /
+                        nb_stat_total_memory();
+                
+                ofs << std::fixed << std::setprecision(6)
+                    << "free (" << us << "us, " << usage << "%), ";
+                
+                allocs.pop_back();
+        }
+
+        return 0;
+}
+
+int free_rnd_single(std::ofstream& ofs)
 {
         ofs << FUNC_NAME << "\n";
 
@@ -18,18 +45,14 @@ int free_rnd_single(std::ofstream& ofs, unsigned ic)
 
         std::vector<void*> allocs = {};
 
-        auto total_allocs = ic * BENCH_BATCH_SIZE;
-
-        /* Allocate enough memory - random order */
-        for (unsigned i = 0; i < total_allocs; i++) {
+        /* Allocate memory until failure */
+        for (;;) {
                 auto alloc_size = nb_stat_block_size(
                         dis(rng));
 
                 void *ptr = (void*) BENCH_MALLOC(alloc_size);
                 if (!ptr) {
-                        std::cerr << FUNC_NAME
-                                  << "BENCH_MALLOC fail" << std::endl;
-                        std::exit(1);
+                        break;
                 }
 
                 allocs.push_back(ptr);
@@ -38,30 +61,16 @@ int free_rnd_single(std::ofstream& ofs, unsigned ic)
         std::cout << FUNC_NAME << ": start" << std::endl;
 
         /* Free them all */
-        for (unsigned i = 0; i < ic; i++) {
-                ofs << "iter: " << i << ": ";
-
-                std::cout << FUNC_NAME << ": iter: "
-                          << i << " / " << ic << "\r";
-
-                for (unsigned j = 0; j < BENCH_BATCH_SIZE; j++) {
-                        void *addr = allocs.back();
-
-                        auto start = std::chrono::high_resolution_clock::now();
-                        BENCH_FREE(addr);
-                        auto durr = std::chrono::high_resolution_clock::now() - start;
-
-                        auto us = std::chrono::duration_cast
-                                <std::chrono::microseconds>(durr).count();
-                        float usage = (float) nb_stat_used_memory() /
-                                nb_stat_total_memory() * 100;
-                        
-                        ofs << "(" << us << "us, " << usage << "%), ";
-
-                        allocs.pop_back();
+        ofs << "thread0: ";
+        while (allocs.size()) {
+                if(do_work(ofs, allocs)) {
+                        break;
                 }
-                ofs << "\n";
+
+                std::this_thread::sleep_for(std::chrono::milliseconds(
+                        BENCH_STRESS_PERIOD));
         }
+
         std::cout << FUNC_NAME << ": done" << std::endl;
 
         return 0;

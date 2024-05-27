@@ -7,11 +7,9 @@
 
 #include "bench.hpp"
 
-void alloc_seq_multi_runner(std::ostringstream& os, int tid)
+static inline int do_work(std::ostringstream& os)
 {
-        auto alloc_size = nb_stat_block_size(0);
-
-        std::cout << FUNC_NAME << ": thread" << tid << ": start\n" << std::flush;
+        static auto alloc_size = nb_stat_block_size(0);
 
         for (unsigned j = 0; j < BENCH_BATCH_SIZE; j++) {
                 auto start = std::chrono::high_resolution_clock::now();
@@ -20,21 +18,46 @@ void alloc_seq_multi_runner(std::ostringstream& os, int tid)
 
                 if (!ptr) {
                         std::cerr << FUNC_NAME
-                                  << "BENCH_MALLOC fail" << std::endl;
-                        std::exit(1);
+                                  << ": BENCH_MALLOC fail."
+                                  << "Exiting early..." << std::endl;
+                        return 1;
                 }
 
                 auto us = std::chrono::duration_cast
                         <std::chrono::microseconds>(durr).count();
                 float usage = (float) nb_stat_used_memory() /
-                        nb_stat_total_memory() * 100;
+                        nb_stat_total_memory();
                 
-                os << "alloc (" << us << "us, " << usage << "%), ";
+                os << std::fixed << std::setprecision(6)
+                   << "alloc (" << us << "us, " << usage << "%), ";
         }
-        std::cout << FUNC_NAME << ": thread" << tid << ": done\n" << std::flush;
+
+        return 0;
 }
 
-int alloc_seq_multi(std::ofstream& ofs, unsigned ic, unsigned tc)
+static void alloc_seq_multi_runner(std::ostringstream& os, unsigned dur)
+{
+        auto start = std::chrono::high_resolution_clock::now();
+
+        /* Allocate until the memory runs out */
+        for (;;) {
+                auto now = std::chrono::high_resolution_clock::now();
+                auto elapsed = std::chrono::duration_cast
+                        <std::chrono::seconds>(now - start).count();
+                if (dur < elapsed) {
+                        break;
+                }
+
+                if (do_work(os)) {
+                        break;
+                }
+                
+                std::this_thread::sleep_for(std::chrono::milliseconds(
+                        BENCH_STRESS_PERIOD));
+        }
+}
+
+int alloc_seq_multi(std::ofstream& ofs, unsigned dur, unsigned tc)
 {
         ofs << FUNC_NAME << "\n";
 
@@ -43,36 +66,26 @@ int alloc_seq_multi(std::ofstream& ofs, unsigned ic, unsigned tc)
         std::vector<std::ostringstream> streams(tc);
         std::vector<std::thread> threads = {};
 
-        std::cout << FUNC_NAME << "main: start" << std::endl;
-
-        for (unsigned i = 0; i < ic; i++) {
-                std::cout << FUNC_NAME << "main: iter: "
-                          << i << " / " << ic << "\r";
-                
-                for (unsigned j = 0; j < tc; j++) {
-                        streams.push_back(std::ostringstream());
-                }
-
-                for (unsigned j = 0; j < tc; j++) {
-                        threads.push_back(
-                                std::thread(alloc_seq_multi_runner,
-                                        std::ref(streams[j]), j)
-                        );
-                }
-
-                /* Wait for them */
-                for (auto& thread : threads) { thread.join(); }
-
-                for (unsigned j = 0; j < tc; j++) {
-                        ofs << "iter: " << i << ": "
-                            << "thread" << j << ": " << streams[j].str();
-                        ofs << "\n";
-                }
-
-                streams.clear();
-                threads.clear();
+        for (unsigned j = 0; j < tc; j++) {
+                streams.push_back(std::ostringstream());
         }
-        std::cout << FUNC_NAME << "main: done" << std::endl;
+
+        std::cout << FUNC_NAME << ": main: start" << std::endl;
+
+        for (unsigned j = 0; j < tc; j++) {
+                threads.push_back(
+                        std::thread(alloc_seq_multi_runner,
+                                std::ref(streams[j]), dur));
+        }
+
+        /* Wait for them */
+        for (auto& thread : threads) { thread.join(); }
+
+        for (unsigned j = 0; j < tc; j++) {
+                ofs << std::fixed << std::setprecision(6)
+                    << "thread" << j << ": " << streams[j].str() << "\n";
+        }
+        std::cout << FUNC_NAME << ": main: done" << std::endl;
 
         return 0;
 }

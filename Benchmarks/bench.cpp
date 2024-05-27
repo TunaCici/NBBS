@@ -17,8 +17,7 @@ void show_help() {
               << "Options:\n"
               << "   --multi,           Multi-threaded\n"
               << "   --threads N,       Thread count (default: 4)\n"
-              << "   --iterations N,    Number of iterations (default: 100)\n"
-              << "   --duration S,      Duration for stress test (default: 30)\n"
+              << "   --duration S,      Duration for the benchmark (default: 30)\n"
               << "   --output FILE,     Output file (default: results.txt)\n"
               << "   --help,            Show this help message\n"
               << std::endl;
@@ -37,7 +36,6 @@ int main(int argc, char *argv[])
 
         bool is_multi = false;
 
-        unsigned ic = 100;
         unsigned tc = 4;
         unsigned dur = 30;
 
@@ -56,13 +54,6 @@ int main(int argc, char *argv[])
                                 tc = std::stoul(args[++i]);
                         } else {
                                 std::cerr << "Error: --threads requires a number" << std::endl;
-                                return 1;
-                        }
-                } else if (args[i] == "--iterations") {
-                         if (i + 1 < args.size()) {
-                                ic = std::stoul(args[++i]);
-                        } else {
-                                std::cerr << "Error: --iterations requires a number" << std::endl;
                                 return 1;
                         }
                 } else if (args[i] == "--duration") {
@@ -92,29 +83,28 @@ int main(int argc, char *argv[])
         /* Verbose */
         std::cout << "Running '" << benchmark << "' with options:\n"
                   << "\tMulti-threaded: " << is_multi << "\n";
-        if (benchmark == "stress") {
-                std::cout << "\tDuration: " << dur << "s\n";
-        } else {
-                std::cout << "\tIterations: " << ic << "\n";
+        if (is_multi) {
+                std::cout << "\tThread: " << tc << "\n";
         }
-        std::cout << "\tOutput: " << output << std::endl;
+        std::cout << "\tDuration: " << dur << "s\n"
+                  << "\tOutput: " << output << std::endl;
 
         /* Run the corressponding benchmark */
         std::ofstream ofs(output, std::ios::out | std::ios::binary);
         int res = 0;
 
         if (benchmark == "alloc-rnd") {
-                res = is_multi ? alloc_rnd_multi(ofs, ic, tc):
-                        alloc_rnd_single(ofs, ic);
+                res = is_multi ? alloc_rnd_multi(ofs, dur, tc):
+                        alloc_rnd_single(ofs, dur);
         } else if (benchmark == "alloc-seq") {
-                res = is_multi ? alloc_seq_multi(ofs, ic, tc):
-                        alloc_seq_single(ofs, ic);
+                res = is_multi ? alloc_seq_multi(ofs, dur, tc):
+                        alloc_seq_single(ofs, dur);
         } else if (benchmark == "free-rnd") {
-                res = is_multi ? free_rnd_multi(ofs, ic, tc):
-                        free_rnd_single(ofs, ic);
+                res = is_multi ? free_rnd_multi(ofs, tc):
+                        free_rnd_single(ofs);
         } else if (benchmark == "free-seq") {
-                res = is_multi ? free_seq_multi(ofs, ic, tc):
-                        free_seq_single(ofs, ic);
+                res = is_multi ? free_seq_multi(ofs, tc):
+                        free_seq_single(ofs);
         } else if (benchmark == "stress") {
                 res = is_multi ? stress_multi(ofs, dur, tc):
                         stress_single(ofs, dur);

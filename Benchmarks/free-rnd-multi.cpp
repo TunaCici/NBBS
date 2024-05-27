@@ -8,37 +8,11 @@
 
 #include "bench.hpp"
 
-void free_rnd_multi_runner(std::ostringstream& os, std::barrier<>& sync_point,
-                           int tid)
+static inline int do_work(std::ostringstream& os, std::vector<void*>& allocs)
 {
-        std::random_device rd;
-        std::mt19937 rng{rd()};  
-        std::uniform_int_distribution<> dis(0, nb_stat_max_order());
-        
-        std::vector<void*> allocs = {};
+        auto batch_size = std::min((size_t) BENCH_BATCH_SIZE, allocs.size());
 
-        /* Allocate blocks - random order */
-        for (unsigned i = 0; i < BENCH_BATCH_SIZE; i++) {
-                auto alloc_size = nb_stat_block_size(
-                        dis(rng));
-
-                void *ptr = (void*) BENCH_MALLOC(alloc_size);
-                if (!ptr) {
-                        std::cerr << FUNC_NAME
-                                  << "BENCH_MALLOC fail" << std::endl;
-                        std::exit(1);
-                }
-
-                allocs.push_back(ptr);
-        }
-
-        /* Wait for other threads to complete their allocs */
-        sync_point.arrive_and_wait();
-
-        std::cout << FUNC_NAME << ": thread" << tid << ": start\n" << std::flush;
-
-        /* Free them all */
-        for (unsigned j = 0; j < BENCH_BATCH_SIZE; j++) {
+        for (unsigned j = 0; j < batch_size; j++) {
                 void *addr = allocs.back();
 
                 auto start = std::chrono::high_resolution_clock::now();
@@ -48,56 +22,84 @@ void free_rnd_multi_runner(std::ostringstream& os, std::barrier<>& sync_point,
                 auto us = std::chrono::duration_cast
                         <std::chrono::microseconds>(durr).count();
                 float usage = (float) nb_stat_used_memory() /
-                        nb_stat_total_memory() * 100;
+                        nb_stat_total_memory();
                 
-                os << "free (" << us << "us, " << usage << "%), ";
+                os << std::fixed << std::setprecision(6)
+                   << "free (" << us << "us, " << usage << "%), ";
 
                 allocs.pop_back();
         }
-        std::cout << FUNC_NAME << ": thread" << tid << ": done\n" << std::flush;
 
+        return 0;
 }
 
-int free_rnd_multi(std::ofstream& ofs, unsigned ic, unsigned tc)
+static void free_rnd_multi_runner(std::ostringstream& os,
+                                  std::barrier<>& sync_point)
+{
+        std::random_device rd;
+        std::mt19937 rng{rd()};  
+        std::uniform_int_distribution<> dis(0, nb_stat_max_order());
+        
+        std::vector<void*> allocs = {};
+
+        /* Allocate memory until failure */
+        for (;;) {
+                auto alloc_size = nb_stat_block_size(
+                        dis(rng));
+
+                void *ptr = (void*) BENCH_MALLOC(alloc_size);
+                if (!ptr) {
+                        break;
+                }
+
+                allocs.push_back(ptr);
+        }
+
+        /* Wait for other threads to complete their allocs */
+        sync_point.arrive_and_wait();
+
+        /* Free them all */
+        while (allocs.size()) {
+                if (do_work(os, allocs)) {
+                        break;
+                }
+
+                std::this_thread::sleep_for(std::chrono::milliseconds(
+                        BENCH_STRESS_PERIOD));
+        }
+        
+}
+
+int free_rnd_multi(std::ofstream& ofs, unsigned tc)
 {
         ofs << FUNC_NAME << "\n";
 
         bench_alloc_init();
 
         std::vector<std::ostringstream> streams(tc);
-        std::vector<std::thread> threads(tc);
+        std::vector<std::thread> threads = {};
         std::barrier sync_point(tc);
 
-        std::cout << FUNC_NAME << ": main: start" << std::endl;
-
-        for (unsigned i = 0; i < ic; i++) {
-                std::cout << FUNC_NAME << "main: iter: "
-                          << i << " / " << ic << "\r";
-                
-                for (unsigned j = 0; j < tc; j++) {
-                        streams.push_back(std::ostringstream());
-                }
-
-                for (unsigned j = 0; j < tc; j++) {
-                        threads.push_back(
-                                std::thread(free_rnd_multi_runner,
-                                        std::ref(streams[j]),
-                                        std::ref(sync_point), j)
-                        );
-                }
-
-                /* Wait for them */
-                for (auto& thread : threads) { thread.join(); }
-
-                for (unsigned j = 0; j < tc; j++) {
-                        ofs << "iter: " << i << ": "
-                            << "thread" << j << ": " << streams[j].str();
-                        ofs << "\n";
-                }
-
-                streams.clear();
-                threads.clear();
+        for (unsigned j = 0; j < tc; j++) {
+                streams.push_back(std::ostringstream());
         }
+
+        std::cout << FUNC_NAME << ": main: start" << std::endl;
+ 
+        for (unsigned j = 0; j < tc; j++) {
+                threads.push_back(
+                        std::thread(free_rnd_multi_runner,
+                                std::ref(streams[j]),
+                                std::ref(sync_point)));
+        }
+
+        /* Wait for them */
+        for (auto& thread : threads) { thread.join(); }
+
+        for (unsigned j = 0; j < tc; j++) {
+                ofs << "thread" << j << ": " << streams[j].str() << "\n";
+        }
+                
         std::cout << FUNC_NAME << ": main: done" << std::endl;
 
         return 0;

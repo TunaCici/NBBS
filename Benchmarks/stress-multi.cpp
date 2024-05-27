@@ -11,8 +11,8 @@
 
 std::atomic<float> target = BENCH_STRESS_UPPER;
 
-void stress_multi_runner(std::ostringstream& os, std::vector<void*>& allocs,
-                         unsigned dur, unsigned tid)
+static void stress_multi_runner(std::ostringstream& os,
+                                std::vector<void*>& allocs, unsigned dur)
 {
         std::random_device rd;
         std::mt19937 rng{rd()};  
@@ -85,7 +85,7 @@ int stress_multi(std::ofstream& ofs, unsigned dur, unsigned tc)
                 threads.push_back(
                         std::thread(stress_multi_runner,
                                 std::ref(streams[i]),
-                                std::ref(allocs[i]), dur, i));
+                                std::ref(allocs[i]), dur));
         }
 
         /* Monitor memory usage */
@@ -121,8 +121,7 @@ int stress_multi(std::ofstream& ofs, unsigned dur, unsigned tc)
         for (auto& thread : threads) { thread.join(); }
 
         for (unsigned i = 0; i < tc; i++) {
-                ofs << "thread #" << i << ": " << streams[i].str()
-                    << "\n";
+                ofs << "thread" << i << ": " << streams[i].str() << "\n";
         }
         std::cout << FUNC_NAME << ": main: done" << std::endl;
 

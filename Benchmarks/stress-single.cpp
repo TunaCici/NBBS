@@ -23,6 +23,7 @@ int stress_single(std::ofstream& ofs, unsigned dur)
         auto start = std::chrono::high_resolution_clock::now();
         std::cout << FUNC_NAME << "start" << std::endl;
 
+        ofs << "thread0: ";
         for(;;) {
                 auto now = std::chrono::high_resolution_clock::now();
                 auto elapsed = std::chrono::duration_cast
@@ -31,8 +32,8 @@ int stress_single(std::ofstream& ofs, unsigned dur)
                         break;
                 }
 
-                std::cout << FUNC_NAME << "elapsed: "
-                          << elapsed << " / " << dur << "\r";
+                std::cout << FUNC_NAME << ": elapsed: "
+                          << elapsed << " / " << dur << "\r" << std::flush;
 
                 float usage = (float) nb_stat_used_memory() /
                         nb_stat_total_memory() * 100;

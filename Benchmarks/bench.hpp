@@ -15,10 +15,10 @@
 
 #define BENCH_MALLOC(size) nb_alloc(size)
 #define BENCH_FREE(addr) nb_free(addr)
-#define BENCH_ARENA_SIZE (6ULL * 1024 * 1024 * 1024) /* Bytes */
+#define BENCH_ARENA_SIZE (4ULL * 1024 * 1024 * 1024) /* Bytes */
 #define BENCH_ARENA_ALIGN (2ULL * 1024 * 1024) /* Bytes */
 
-#define BENCH_BATCH_SIZE 100ULL /* Allocs/frees in one iteration */
+#define BENCH_BATCH_SIZE 1000ULL /* Allocs/frees in one iteration */
 #define BENCH_STRESS_UPPER 0.95f /* Percent */
 #define BENCH_STRESS_LOWER 0.05f /* Percent */
 #define BENCH_STRESS_PERIOD 100 /* Millisecond */
@@ -39,11 +39,6 @@ static inline void bench_alloc_init()
         }
         std::cout <<  "Initialize arena ok" << std::endl;
 
-        /* Preheating - force OS to have mappings ready */
-        std::cout <<  "Preheat arena" << std::endl;
-        std::fill_n(arena, BENCH_ARENA_SIZE / sizeof(uint8_t), 0);
-        std::cout <<  "Preheat arena ok" << std::endl;
-
         /* Allocator init */
         std::cout << "Initialize allocator" << std::endl;
         if (nb_init((uint64_t) arena, BENCH_ARENA_SIZE) != 0) {
@@ -61,20 +56,19 @@ static inline void bench_alloc_init()
  * single: single-threaded
  * 
  * ofs: output file stream
- * ic: iteration count
  * tc: thread count
  * dur: duration in seconds
  */
 
-int alloc_rnd_multi(std::ofstream& ofs, unsigned ic, unsigned tc);
-int alloc_rnd_single(std::ofstream& ofs, unsigned ic);
-int alloc_seq_multi(std::ofstream& ofs, unsigned ic, unsigned tc);
-int alloc_seq_single(std::ofstream& ofs, unsigned ic);
+int alloc_rnd_multi(std::ofstream& ofs, unsigned dur, unsigned tc);
+int alloc_rnd_single(std::ofstream& ofs, unsigned dur);
+int alloc_seq_multi(std::ofstream& ofs, unsigned dur, unsigned tc);
+int alloc_seq_single(std::ofstream& ofs, unsigned dur);
 
-int free_rnd_multi(std::ofstream& ofs, unsigned ic, unsigned tc);
-int free_rnd_single(std::ofstream& ofs, unsigned ic);
-int free_seq_multi(std::ofstream& ofs, unsigned ic, unsigned tc);
-int free_seq_single(std::ofstream& ofs, unsigned ic);
+int free_rnd_multi(std::ofstream& ofs, unsigned tc);
+int free_rnd_single(std::ofstream& ofs);
+int free_seq_multi(std::ofstream& ofs, unsigned tc);
+int free_seq_single(std::ofstream& ofs);
 
 int stress_multi(std::ofstream& ofs, unsigned dur, unsigned tc);
 int stress_single(std::ofstream& ofs, unsigned dur);
