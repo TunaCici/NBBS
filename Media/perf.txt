@@ -1,0 +1,29 @@
+unning 'stress' with options:
+	Multi-threaded: 1
+	Thread: 8
+	Duration: 30s
+	Output: results.txt
+Initialize arena
+Initialize arena ok
+Initialize allocator
+Initialize allocator ok
+stress_multi: main: start
+stress_multi: main: elapsed: 30 / 30s
+stress_multi: main: done
+Saving results to: results.txt
+
+ Performance counter stats for './bench --stress --multi --threads 8 --duration 30':
+
+            400.57 msec task-clock                       #    0.013 CPUs utilized             
+             5,655      context-switches                 #   14.117 K/sec                     
+             1,141      cpu-migrations                   #    2.848 K/sec                     
+             1,793      page-faults                      #    4.476 K/sec                     
+       286,203,554      cycles                           #    0.714 GHz                       
+       133,573,698      instructions                     #    0.47  insn per cycle            
+        23,634,136      branches                         #   59.001 M/sec                     
+         1,825,902      branch-misses                    #    7.73% of all branches           
+
+      31.013083699 seconds time elapsed
+
+       0.178297000 seconds user
+       0.256657000 seconds sys

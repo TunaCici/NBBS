@@ -1,0 +1,39 @@
+==26473== Cachegrind, a high-precision tracing profiler
+==26473== Copyright (C) 2002-2017, and GNU GPL'd, by Nicholas Nethercote et al.
+==26473== Using Valgrind-3.22.0 and LibVEX; rerun with -h for copyright info
+==26473== Command: ./bench --stress --multi --threads 8 --duration 30
+==26473== 
+--26473-- warning: L3 cache found, using its data for the LL simulation.
+Running 'stress' with options:
+	Multi-threaded: 1
+	Thread: 8
+	Duration: 30s
+	Output: results.txt
+Initialize arena
+Initialize arena ok
+Initialize allocator
+Initialize allocator ok
+stress_multi: main: start
+stress_multi: main: elapsed: 30 / 30s
+stress_multi: main: done
+Saving results to: results.txt
+==26473== 
+==26473== I refs:        40,802,035
+==26473== I1  misses:        34,093
+==26473== LLi misses:         3,258
+==26473== I1  miss rate:       0.08%
+==26473== LLi miss rate:       0.01%
+==26473== 
+==26473== D refs:        17,006,639  ( 7,322,012 rd   + 9,684,627 wr)
+==26473== D1  misses:       350,466  (   109,331 rd   +   241,135 wr)
+==26473== LLd misses:       114,192  (     8,584 rd   +   105,608 wr)
+==26473== D1  miss rate:        2.1% (       1.5%     +       2.5%  )
+==26473== LLd miss rate:        0.7% (       0.1%     +       1.1%  )
+==26473== 
+==26473== LL refs:          384,559  (   143,424 rd   +   241,135 wr)
+==26473== LL misses:        117,450  (    11,842 rd   +   105,608 wr)
+==26473== LL miss rate:         0.2% (       0.0%     +       1.1%  )
+==26473== 
+==26473== Branches:      10,894,118  (10,624,759 cond +   269,359 ind)
+==26473== Mispredicts:      294,676  (   225,059 cond +    69,617 ind)
+==26473== Mispred rate:         2.7% (       2.1%     +      25.8%   )

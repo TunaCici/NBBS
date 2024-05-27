@@ -7,16 +7,16 @@ It is meant to be used as a [page-frame allocator](https://wiki.osdev.org/Page_F
 
 # Highlights
 
-NBBS, is based on the binary buddy allocation algorithm (first described by [Kenneth C. Knowlton (published 1965)](https://dl.acm.org/doi/10.1145/365628.365655)). It focuses upon the concurrent allocations/releases done on the state of the buddy system. Instead of relying on *spin-locks*, the algorithm uses indivudual *atomic instructions (Read-Modify-Write*) provided by the hardware.
+NBBS, is based on the binary buddy allocation algorithm (first described by [Kenneth C. Knowlton (published 1965)](https://dl.acm.org/doi/10.1145/365628.365655)). It focuses upon the concurrent allocations/releases done on the state of the buddy system. Instead of relying on *spin-locks*, the algorithm uses indivudual hardware *atomic instructions (Read-Modify-Write*) to provide synchronization across multiple cores.
 
 Below is a list of highlights of the NBBS:
 
-* **Non-Blocking Design**: Avoids spin-locks; thus, concurrent accesses from different cores won't block each other. This greatly `reduces latency` of operations like allocation and release compared to other blocking designs.
-* **Cache Play**: The tree & index data structure is designed as a continuous heap. This and the algorithm meta-data being close to each other in memory helps to `reduce cache misses`.
-* **Memory Overhead**: The size of the data structures maintained depends on the *total arena size* & the desired *minimum allocation size*. A rough formula to find data structure memory overhead is: 
+* **Non-Blocking Design**: Avoids spin-locks; thus, concurrent accesses from different cores won't block each other. This greatly `reduces latency` of allocation and release operations. See the [Benchmark](#benchmark) section.
+* **Cache Play**: Tree & index data structure are implemented as a continuous heap in memory. This and the algorithm meta-data being physically close to each other in memory help `reduce cache misses`.
+* **Memory Overhead**: The size of the data structures depends on the *total arena size* and the desired *minimum allocation size*. The following formulas can be use to calculate the data structure size. 
   * **nb_tree_size:** `2 * (arena_size / min_alloc_size) * 1 bytes`
   * **nb_index_size:** `(arena_size / min_alloc_size) * 4 bytes`
-  * *For example; 6 GiB arena size /w 4 KiB minimum allocation size would cost ~9 MiB or `~0.14%`.*
+  * *For example; 6 GiB arena size /w 4 KiB minimum allocation size would cost ~9 MiB or `~0.14%` of the arena size*
 
 For more information refer to the original research on *ieeexplore*: [NBBS: A Non-Blocking Buddy System for Multi-Core Machines
 ](https://ieeexplore.ieee.org/document/9358002)
@@ -25,11 +25,11 @@ For more information refer to the original research on *ieeexplore*: [NBBS: A No
 # Vision
 
 While I was designing [WesterOS](https://github.com/TunaCici/WesterOS)'s kernel, I realized a relatively big security risk.
-The physcical memory management system (PMM) I was using require read/write access for all the blocks it was keeping track of.
+The physical memory manager (PMM) I was using required read/write access for all the blocks it managed.
 Since my kernel is responsible for all the memory, this meant that it would be identity mapped and have full access over the system memory.
 And I did not really like the idea of kernel having the whole memory mapped in it's address space.
 
-So, I decided to ditch the old PMM in an effort to find an ideal successor. An ideal PMM for WesterOS's kernel would have:
+So, I decided to move on from the old PMM in an effort to find an ideal successor. An ideal PMM for WesterOS's kernel would have:
 
 * **Static Data Structure**
   * It should have a static and complete data structure; within one memory chunk
@@ -73,7 +73,7 @@ Public APIs are not affected from this terminology interchange. I have defined t
 #define NB_MAX_ORDER 9U
 ```
 
-This value is used to set the base_level inside the initialization function as follow:
+This value is used to set the base_level inside the initialization function as the following:
 
 ```c
 uint32_t nb_base_level = nb_depth - NB_MAX_ORDER;
@@ -83,11 +83,104 @@ The above additions are the only deviations that I did from the original algorit
 
 # Benchmark
 
-TODO.
+I have prepared a few benchmarks in the [Benchmarks](https://github.com/TunaCici/NBBS/tree/main/Benchmarks) folder. It's written in C++.
+They are meant to measure to latency of `nb_alloc()` and `nb_free()` under different scenariosw with each having both single and multi-thread versions.
+
+1. **Allocate sequantially:** Allocates all block on the same order (`max_order`) is chosen. Multi-threaded version divides all block equally with each other.
+2. **Allocate randomly:** Allocates random blocks on different orders until memory is full. In multi-threaded version, each thread races with each other. No equal division between them occurs.
+3. **Free sequantially:** Performs sequantial allocation. And then frees all of them. Multi-threaded version divides all blocks equally with each other.
+4. **Free randomly:** Performs random allocation. And then frees all of them. In multi-threaded version, each thread races with each other for allocation and then waits for others to finish. After the allocation, each races to free.
+5. **Stress:** Perform allocation until memory usage is at 95% and then frees them until 5% is reached. Repeats until `--duration` time runs out.
+
+You can build, run and then plot the results on Linux or macOS systems with the following:
+
+```bash
+# 1. Build the 'bench' CLI tool
+make bench
+
+# 2. Run the desired benchmark (use --help for options)
+./bench --stress --multi --threads 8 --duration 60 --output results.txt
+
+# 3. Setup the Python virtual environment (you can also use system-wide pkgs)
+cd Benchmarks
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+
+# 4. Plot the results (the plot will automatically show up on the browser)
+python3 graph.py --input ../results.txt 
+```
+
+I ran some benchmarks on my Intel i5 6600K /w 16 GB RAM machine running Ubuntu 24.04 LTS using the below tools:
+
+* **NBBS bench CLI**
+* **Cachegrind (from Valgrind)**
+* **Linux Perf**
+
+> The bench CLI is compiled using GCC 13.2.0 with `-m64` and the `-O3` optimization flag.
+
+```bash
+./bench --stress --multi --threads 8 --duration 30
+```
+!["Multi-threaded Stress Benchmark"](/Media/Stress_Multi_8T_20S.png)
+
+```bash
+./bench --alloc-rnd --multi --threads 8
+```
+!["Multi-threaded Allocation /w Random Blocks Benchmark](/Media/Alloc_RND_8T.png)
+
+```bash
+valgrind --tool=cachegrind --cache-sim=yes --branch-sim=yes ./bench --stress --multi --threads 8 --duration 30
+```
+
+```bash
+==26473== 
+==26473== I refs:        40,802,035
+==26473== I1  misses:        34,093
+==26473== LLi misses:         3,258
+==26473== I1  miss rate:       0.08%
+==26473== LLi miss rate:       0.01%
+==26473== 
+==26473== D refs:        17,006,639  ( 7,322,012 rd   + 9,684,627 wr)
+==26473== D1  misses:       350,466  (   109,331 rd   +   241,135 wr)
+==26473== LLd misses:       114,192  (     8,584 rd   +   105,608 wr)
+==26473== D1  miss rate:        2.1% (       1.5%     +       2.5%  )
+==26473== LLd miss rate:        0.7% (       0.1%     +       1.1%  )
+==26473== 
+==26473== LL refs:          384,559  (   143,424 rd   +   241,135 wr)
+==26473== LL misses:        117,450  (    11,842 rd   +   105,608 wr)
+==26473== LL miss rate:         0.2% (       0.0%     +       1.1%  )
+==26473== 
+==26473== Branches:      10,894,118  (10,624,759 cond +   269,359 ind)
+==26473== Mispredicts:      294,676  (   225,059 cond +    69,617 ind)
+==26473== Mispred rate:         2.7% (       2.1%     +      25.8%   )
+```
+
+```bash
+perf stat ./bench --stress --multi --threads 8 --duration 30
+```
+
+```bash
+ Performance counter stats for './bench --stress --multi --threads 8 --duration 30':
+
+            400.57 msec task-clock                       #    0.013 CPUs utilized             
+             5,655      context-switches                 #   14.117 K/sec                     
+             1,141      cpu-migrations                   #    2.848 K/sec                     
+             1,793      page-faults                      #    4.476 K/sec                     
+       286,203,554      cycles                           #    0.714 GHz                       
+       133,573,698      instructions                     #    0.47  insn per cycle            
+        23,634,136      branches                         #   59.001 M/sec                     
+         1,825,902      branch-misses                    #    7.73% of all branches           
+
+      31.013083699 seconds time elapsed
+
+       0.178297000 seconds user
+       0.256657000 seconds sys
+```
 
 # Usage
 
-To use the NBBS allocator in a C/C++ project you need to [nbbs.h]() and [nbbs.c]() into your builds.
+To use the NBBS allocator in a C/C++ project you need to put [nbbs.h](https://github.com/TunaCici/NBBS/blob/main/nbbs.h) and [nbbs.c](https://github.com/TunaCici/NBBS/blob/main/nbbs.c) into your builds.
 After that, you probably would want to configure the following in `nbbs.h`:
 
 * `NB_MIN_SIZE`: Minimum allocation size in bytes. (e.g., 4096, 16384 or 65536)
@@ -112,17 +205,16 @@ You need to provide an allocator for the NBBS by defining `NB_MALLOC()`.
 
 ## Unit Tests
 
-I have provided some basic Google Test unit here in the repository. You can use them as an example how to setup, use and test on your system.
+I have provided some basic Google Test units in this repository. You can use them as an example to how to setup, use and test on your projects and system.
 
 They are built and tested on the following compilers and architectures. Feel free to contribute and make NBBS available on others.
 
 Platform | Compilers | Architectures
 :--- | :--- | :--- 
 macOS | Clang, GCC | arm64
-Linux | Clang, GCC | arm64, x64 
-Windows | Clang, MSVC | x64
+Linux | Clang, GCC | arm64, x64
 
-Follow the below steps to run the unit test on Linux & macOS platforms.
+Follow the below steps to run the unit tests on Linux or macOS platforms.
 
 ```bash
 # 0. Make sure 'git', 'make' and 'gcc | clang' is installed
@@ -136,13 +228,15 @@ git submodule update --init --recursive
 # 3. Build unit tests; this will automatically run the tests
 make test
 
-# X. (Optionally) Run the ./all_test with Google Test parameters
+# X. (Optionally) Run the ./all_test with other Google Test parameters
 ./all_test --gtest_repeat=1000
 ```
 
 # API
 
-TODO.
+The following sections describe the public and statistics APIs.
+There are also lots of helper functions and private APIs that are not described here to simplify things.
+You can check them out in the source code if you so desire. They are prefixed with `__` or implemented as `static inline` functions.
 
 ## Initialize
 
