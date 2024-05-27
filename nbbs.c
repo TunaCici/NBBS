@@ -8,7 +8,7 @@
 
 #include "nbbs.h"
 
-/* Metadata */
+/* Meta-data */
 static uint8_t *nb_tree = 0;
 static uint32_t *nb_index = 0;
 
@@ -359,7 +359,7 @@ uint64_t nb_stat_used_blocks(uint32_t order)
 uint8_t nb_stat_occupancy_map(uint8_t *buff, uint32_t order)
 {
         if (!buff || NB_MAX_ORDER < order) {
-                return 0;
+                return 1;
         }
 
         uint32_t start_node = EXP2(nb_depth - order);
@@ -369,5 +369,5 @@ uint8_t nb_stat_occupancy_map(uint8_t *buff, uint32_t order)
                 buff[i - start_node] = !nb_is_free(nb_tree[i]);
         }
 
-        return 1;
+        return 0;
 }

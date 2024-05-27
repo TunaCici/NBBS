@@ -56,9 +56,6 @@ extern "C" {
 #elif __linux__
         #define EXP2(n) (0x1ULL << (n))
         #define LOG2_LOWER(n) (64ULL - __builtin_clzll(n) - 1ULL) // 64 bit
-#elif _WIN32
-        #define EXP2(n) (0x1ULL << (n))
-        #define LOG2_LOWER(n) (64ULL - __lzcnt64(n) - 1ULL) // 64 bit
 #else
         #error "Unsupported platform"
 #endif
@@ -89,18 +86,12 @@ extern "C" {
         #define VCAS(ptr, expected, desired) \
                 __atomic_compare_exchange_n(ptr, expected, desired, 0, \
                         __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST) ? (*expected) : 0
-#elif _WIN32
-        #define FAD(ptr, val)
-        #define BCAS(ptr, expected, desired)
-        #define VCAS(ptr, expected, desired)
 #else
         #error "Unsupported platform"
 #endif
 
 /*
  * Public APIs
- *
- * TODO: Explain.
  */
 
 int  nb_init(uint64_t base_addr, uint64_t size);
@@ -109,8 +100,6 @@ void nb_free(void *addr);
 
 /*
  * Private APIs
- *
- * TODO: Explain.
  */
 
 uint32_t __nb_try_alloc(uint32_t node);
@@ -122,8 +111,6 @@ void __nb_clean_block(void* addr, uint64_t size);
 
 /*
  * Statistics
- *
- * TODO: Explain.
  */
 
 uint64_t nb_stat_min_size();
@@ -147,8 +134,6 @@ uint8_t nb_stat_occupancy_map(uint8_t *buff, uint32_t order);
 
 /*
  * Helpers
- *
- * TODO:? Explain.
  */
 static inline uint8_t nb_mark(uint8_t val, uint32_t child)
 {
