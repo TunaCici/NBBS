@@ -5,6 +5,7 @@
 #include <chrono>
 #include <random>
 #include <barrier>
+#include <iomanip>
 
 #include "bench.hpp"
 
